@@ -1,0 +1,84 @@
+{
+  "name": "clawd-buddy",
+  "productName": "Clawd Buddy",
+  "version": "0.1.0",
+  "description": "An unofficial Clawd desktop companion inspired by classic desktop pets, with sprite animations, desktop wandering, and optional Claude AI conversations.",
+  "author": "Clawd Buddy contributors",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "smoke": "npm run build && node scripts/smoke.mjs",
+    "assets:placeholder": "node scripts/generate-placeholder.mjs",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "dist": "node scripts/build.mjs && electron-builder --win --publish never",
+    "dist:dir": "node scripts/build.mjs && electron-builder --win dir --publish never"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "electron": "^44.7.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.4"
+  },
+  "build": {
+    "appId": "io.github.clawdbuddy.app",
+    "productName": "Clawd Buddy",
+    "copyright": "Copyright © Clawd Buddy contributors. Unofficial fan project; not affiliated with Anthropic.",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets/icons"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/sprites/placeholder",
+        "to": "sprites/placeholder"
+      },
+      {
+        "from": "assets/icons",
+        "to": "icons",
+        "filter": [
+          "*.png"
+        ]
+      },
+      {
+        "from": "assets/sprites/README.md",
+        "to": "sprites/README.md"
+      },
+      {
+        "from": "assets/sprites/manifest.example.json",
+        "to": "sprites/manifest.example.json"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icons/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "Clawd Buddy"
+    }
+  }
+}
