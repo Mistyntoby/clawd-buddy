@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' clawd-asset:; connect-src 'none'; font-src 'self'"
+    />
+    <title>Clawd Buddy</title>
+    <link rel="stylesheet" href="companion.css" />
+  </head>
+  <body>
+    <div id="stage">
+      <div id="bubble" role="status" aria-live="polite" hidden>
+        <div id="bubble-text"></div>
+        <div id="bubble-source"></div>
+      </div>
+      <div id="character" title="">
+        <canvas id="sprite"></canvas>
+        <div id="fallback-shape" hidden><span></span><span></span></div>
+      </div>
+      <div id="placeholder-tag" hidden>placeholder art</div>
+    </div>
+    <script src="main.js"></script>
+  </body>
+</html>

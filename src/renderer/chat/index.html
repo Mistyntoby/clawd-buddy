@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'"
+    />
+    <title>Chat — Clawd Buddy</title>
+    <link rel="stylesheet" href="../styles/theme.css" />
+    <link rel="stylesheet" href="chat.css" />
+  </head>
+  <body>
+    <header id="header">
+      <div class="who">
+        <span class="avatar" aria-hidden="true"></span>
+        <div>
+          <div id="name" class="name">Clawd</div>
+          <div id="mode" class="mode"></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="clear" class="ghost" title="Clear conversation">Clear</button>
+        <button id="open-settings" class="ghost" title="Settings">Settings</button>
+      </div>
+    </header>
+    <div id="notice" hidden></div>
+    <main id="messages" aria-live="polite"></main>
+    <form id="composer" autocomplete="off">
+      <textarea id="input" rows="1" placeholder="Say something…" aria-label="Message"></textarea>
+      <button id="send" class="primary" type="submit">Send</button>
+    </form>
+    <script src="main.js"></script>
+  </body>
+</html>
