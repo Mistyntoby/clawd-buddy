@@ -1,0 +1,23 @@
+{
+  "name": "Clawd (my authorized copy)",
+  "version": 1,
+  "official": false,
+  "placeholder": false,
+  "author": "Who created the artwork",
+  "source": "Where you obtained it (URL or description)",
+  "license": "The license or permission under which you may use it",
+  "attribution": "Any attribution text the license requires",
+  "frameWidth": 32,
+  "frameHeight": 32,
+  "animations": {
+    "idle": { "frames": ["idle_0.png", "idle_1.png"], "fps": 4, "loop": true },
+    "walk": { "sheet": "walk.png", "frameCount": 4, "fps": 8, "loop": true },
+    "think": { "frames": ["think_0.png", "think_1.png"], "fps": 3, "loop": true },
+    "talk": { "frames": ["talk_0.png", "talk_1.png"], "fps": 6, "loop": true },
+    "happy": { "frames": ["happy_0.png", "happy_1.png"], "fps": 6, "loop": true },
+    "confused": { "frames": ["confused_0.png"], "fps": 3, "loop": true },
+    "sleep": { "frames": ["sleep_0.png", "sleep_1.png"], "fps": 2, "loop": true },
+    "wake": { "frames": ["wake_0.png", "wake_1.png"], "fps": 3, "loop": false },
+    "action": { "sheet": "action.png", "frameCount": 4, "fps": 8, "loop": true }
+  }
+}
