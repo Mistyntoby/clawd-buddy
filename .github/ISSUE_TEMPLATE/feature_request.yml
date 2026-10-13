@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest an idea for Clawd Buddy
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would it be useful?
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: This idea doesn't require monitoring other apps, files, keystrokes, clipboard, or the screen (or it includes an explicit opt-in and permission model).
