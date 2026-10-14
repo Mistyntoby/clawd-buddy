@@ -291,6 +291,8 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
       await wait(300);
       const edge = await js(companion, "getComputedStyle(document.documentElement).getPropertyValue('--term-edge').trim()");
       check("chat box border color follows the setting", String(edge).toLowerCase() === "#d97757", String(edge));
+      await wait(200);
+      await capture(companion, path.join(dir, "companion-color.png"));
       clawd.windows.sendCompanion("companion:input", "close");
       if (clawd.windows.settings && !clawd.windows.settings.isDestroyed()) {
         clawd.windows.sendSettings("settings:navigate", "reminders");

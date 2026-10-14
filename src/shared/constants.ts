@@ -101,13 +101,13 @@ export const MOTION = {
   },
   /**
    * The hop when Clawd is dropped (a transform on the sprite; the window never
-   * moves): launch ~17 px up, then bounces that lose 60% of their speed each
-   * touch-down, done in about a third of a second.
+   * moves): launch ~22 px up, then bounces that keep 42% of their speed at each
+   * touch-down, done in under half a second.
    */
   dropBounce: {
-    launchSpeed: 300,
-    gravity: 2600,
-    restitution: 0.4,
+    launchSpeed: 320,
+    gravity: 2300,
+    restitution: 0.42,
     restSpeed: 70,
   },
   /** Minimum time between two petting reactions, ms. */
