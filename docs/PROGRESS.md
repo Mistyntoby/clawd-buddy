@@ -47,12 +47,15 @@ Verified with real mouse input on this Windows PC (synthesized at the OS level w
 - Packaging: `npm run dist:mac` builds dmg and zip for arm64 and x64 (ad-hoc signed, not notarized); `npm run dist:win` builds the NSIS installer.
 - Launchers `Launch-ClawdBuddy.bat` and `Launch-ClawdBuddy.command`; `.nvmrc`, `engines`, complete `.gitignore`, line-ending rules; `docs/DEVELOPMENT.md` and `docs/MACOS.md`.
 - CI: check on Windows, macOS, Linux; smoke on Windows and macOS; packaging on Windows and macOS; actions updated to v7.
-- Verified here (Windows): the `.bat` launcher runs from its folder and starts the app; the `.command` launcher passes `bash -n`. **Not run on a physical Mac**; CI's macOS runners are the only macOS verification.
+- Verified here (Windows): the `.bat` launcher runs from its folder and starts the app; the `.command` launcher passes `bash -n`.
+- Verified on GitHub's macOS runner (CI run 38553891716): type-check, lint, unit tests, build, all 37 smoke checks (including drag and drop through the real window, hit testing, the chat terminal, reminders), and packaging of arm64 dmg/zip (ad-hoc signed; notarization skipped, no credentials).
+- Found by the macOS smoke run and fixed: macOS kept the companion window's top edge below the menu bar, so drops near the top weren't exact. The window now uses `enableLargerThanScreen` on macOS so a frameless window goes exactly where the app places it.
+- **Not run on a physical Mac** (no Mac available): real trackpad drags, the menu bar icon, Keychain prompts, notifications, the `.command` launcher by double-click, and Gatekeeper's first-launch flow still need a person with a Mac; see MANUAL_TESTING.md.
 
 ### Tests
 
 - 155 unit tests (behavior priorities, repeated drags, rapid movement, lost releases, watchdog catch-up, multi-monitor and negative coordinates, landing never moving the window, walking easing, squash spring, layout crispness, reminders, chat history, settings migration, petting cooldown).
-- 37 smoke checks on Windows, all passing.
+- 37 smoke checks, all passing on Windows (locally and in CI) and macOS (CI).
 
 ## 2026-10-13: Claude subscription option
 
