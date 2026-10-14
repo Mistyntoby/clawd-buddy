@@ -275,16 +275,18 @@ export class WindowManager implements CompanionPort {
     return win;
   }
 
-  /** Next to Clawd's body (right side if there's room, else left), bottom-aligned with his feet, on his display. */
+  /** Next to Clawd (right side if there's room, else left), bottom-aligned with his feet, on his display. */
   private chatBoundsNearCompanion(size: Size): Rect {
     const c = this.companion && !this.companion.isDestroyed() ? this.companion.getBounds() : null;
     const body = c ? { x: c.x + this.layout.body.x, y: c.y + this.layout.body.y, width: this.layout.body.width, height: this.layout.body.height } : null;
     const area = body ? screen.getDisplayMatching(body).workArea : screen.getPrimaryDisplay().workArea;
     let x = area.x + Math.round((area.width - size.width) / 2);
     let y = area.y + Math.round((area.height - size.height) / 2);
-    if (body) {
-      const gap = 14;
-      x = body.x + body.width + gap + size.width <= area.x + area.width ? body.x + body.width + gap : body.x - gap - size.width;
+    if (body && c) {
+      // Beside the companion window (not just his body), so his speech bubble, which spans that
+      // window's width, never covers the terminal.
+      const gap = 6;
+      x = c.x + c.width + gap + size.width <= area.x + area.width ? c.x + c.width + gap : c.x - gap - size.width;
       y = body.y + body.height - size.height;
     }
     x = Math.min(Math.max(x, area.x), area.x + area.width - size.width);
