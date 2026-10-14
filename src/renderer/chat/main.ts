@@ -168,9 +168,9 @@ async function refreshStatus(): Promise<void> {
   memoryEnabled = s.memoryEnabled;
   nameEl.textContent = s.name;
   document.title = `Chat with ${s.name} — Clawd Buddy`;
-  const online = s.enabled && s.hasKey;
+  const online = s.ready;
   modeEl.className = `mode ${online ? "claude" : "offline"}`;
-  modeEl.textContent = online ? `Claude · ${s.model}` : "Offline mode";
+  modeEl.textContent = online ? `Claude · ${s.model}${s.provider === "claude-code" ? " · subscription" : ""}` : "Offline mode";
   notice.replaceChildren();
   if (!online) {
     notice.append(
@@ -178,7 +178,9 @@ async function refreshStatus(): Promise<void> {
         "div",
         {},
         s.enabled
-          ? "AI is enabled but no API key is set, so replies are scripted and do not come from Claude."
+          ? s.provider === "claude-code"
+            ? "AI is enabled but Claude Code wasn't found, so replies are scripted and do not come from Claude."
+            : "AI is enabled but no API key is set, so replies are scripted and do not come from Claude."
           : "Offline mode: replies are simple scripted responses, not from Claude.",
       ),
       h("button", { onclick: () => clawd.app.openSettings("ai") }, "Set up Claude"),

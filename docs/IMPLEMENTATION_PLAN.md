@@ -12,6 +12,7 @@ A Windows-first desktop companion in the spirit of classic desktop pets. It wand
 | Renderer | Vanilla TypeScript + a tiny DOM helper | Three small windows don't need a framework |
 | Bundler | esbuild | One fast step for main, preload (sandbox needs a single CJS file), and renderers |
 | Claude | Official `@anthropic-ai/sdk`, streaming, main process only | The key never reaches a renderer. Default model `claude-opus-5-5` lives in one constant. Low effort and short replies suit a companion. Server-side refusal fallback is enabled. |
+| Subscription access | Optional backend that runs the user's own Claude Code CLI (`claude -p`, stream-json) | Lets Pro/Max users chat without an API key while the app never touches their Claude credentials |
 | Key storage | Electron `safeStorage` (DPAPI) | OS-level encryption. Without it, the key is held in memory only and never written in plain text. |
 | Persistence | JSON files in userData, written atomically | Small and dependency-free. A corrupt file falls back to defaults. |
 | Artwork | Asset-provider system plus an original placeholder | No official, redistributable Clawd sprite source exists (see ARTWORK.md) |
@@ -26,7 +27,7 @@ main process
             ├─ WindowManager ── companion / chat / settings windows (implements CompanionPort)
             ├─ CompanionController ── BehaviorMachine (pure state machine)
             │                       └─ movement math (pure)
-            ├─ ChatService ── StreamFactory (Anthropic SDK) / OfflineBrain
+            ├─ ChatService ── StreamFactory: Anthropic SDK | Claude Code CLI / OfflineBrain
             ├─ TrayController, context menu
             └─ registerIpc ── ipc-policy (per-window allow-list) + validators
 preload   window.clawd — a fixed, typed API; no raw IPC

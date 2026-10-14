@@ -8,8 +8,7 @@ import { buildSystemPrompt } from "../src/main/personality";
 import type { ChatEvent } from "../src/shared/types";
 
 const ctx = (over: Partial<ChatContext> = {}): ChatContext => ({
-  aiEnabled: true,
-  apiKey: "sk-ant-test-key-000000000000000",
+  connection: { provider: "api", apiKey: "sk-ant-test-key-000000000000000" },
   model: "claude-opus-5-5",
   name: "Clawd",
   personality: "playful",
@@ -83,10 +82,10 @@ describe("chat service", () => {
     expect(service.busy).toBe(false);
   });
 
-  it("uses the offline brain when AI is disabled or there is no key — and labels it", async () => {
+  it("uses the offline brain when there is no Claude connection — and labels it", async () => {
     const factory = vi.fn<StreamFactory>();
     const { service, events } = setup(factory);
-    for (const c of [ctx({ aiEnabled: false }), ctx({ apiKey: null })]) {
+    for (const c of [ctx({ connection: null }), ctx({ connection: null, personality: "calm" })]) {
       const h = hooks();
       await service.send("hello", c, h);
       expect(h.calls).toEqual(["done:offline"]);

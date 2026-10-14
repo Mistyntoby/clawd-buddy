@@ -1,5 +1,13 @@
 # Progress log
 
+## 2026-10-13: Claude subscription option
+
+- Added a second way to reach Claude: **Settings → AI → Connect with → Claude subscription (Claude Code)**. Each message runs the locally installed `claude -p` with streaming JSON output, no tools, `--safe-mode`, no session persistence, and an empty working folder. Earlier turns are sent as a transcript in the prompt. `ANTHROPIC_API_KEY` is stripped from the CLI's environment so it uses the subscription.
+- *Test connection* uses `claude auth status`, which costs no usage, and reports the plan.
+- Verified live against a Claude Pro sign-in, outside Electron, by calling the backend module directly: streamed reply with conversation context, *Stop* (abort after 4 deltas gives `AbortError`), and an invalid model producing the friendly "can't use that model" error. "Not signed in" output was checked against the CLI using an empty config folder.
+- Not yet verified: a live subscription chat from inside the running Electron app (the smoke test only checks that the option can be selected and stays offline while AI is disabled). It's on the manual checklist.
+- Tests: 105 unit tests, 22 smoke checks, all passing.
+
 ## 2026-10-13: v0.1.0 first release candidate
 
 ### Initial findings (Phase A)
@@ -19,7 +27,7 @@
 - Context menu, tray menu, speech bubble (wraps, clamps to the window, shows its source), and synthesized sounds.
 - Chat: streaming Claude replies, Stop/cancel, history trimming, friendly error mapping, refusal handling, and offline brain responses that are always labeled.
 - Settings: behavior, AI key (safeStorage), model, memory (opt-in, with an approval card), sprite diagnostics, reset, and quit. Launch at startup is disabled with an explanation when running from source.
-- Tests: 91 unit tests, plus a 21-check smoke test that passes on both the dev build and the packaged build.
+- Tests: 91 unit tests, plus a 21-check smoke test that passes on both the dev build and the packaged build (counts as of this release; see the newer entry above).
 - Windows NSIS installer builds with `npm run dist`.
 
 ### Issues found and fixed during verification

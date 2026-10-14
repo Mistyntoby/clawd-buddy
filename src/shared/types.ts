@@ -20,6 +20,13 @@ export type MovementSpeed = "slow" | "normal" | "fast";
 
 export type Personality = "playful" | "calm" | "concise";
 
+/**
+ * How Claude is reached: "api" uses the user's own Anthropic API key;
+ * "claude-code" runs the locally installed Claude Code CLI, which is signed in
+ * with the user's Claude subscription.
+ */
+export type AiProvider = "api" | "claude-code";
+
 export interface Settings {
   version: 1;
   firstRunComplete: boolean;
@@ -37,6 +44,7 @@ export interface Settings {
   openChatOnStartup: boolean;
   chatAlwaysOnTop: boolean;
   aiEnabled: boolean;
+  aiProvider: AiProvider;
   model: string;
   memoryEnabled: boolean;
   spritePack: string;
@@ -118,7 +126,12 @@ export interface TranscriptEntry {
 
 export interface AiStatus {
   enabled: boolean;
+  provider: AiProvider;
+  /** True when replies will come from Claude (enabled and the selected provider is usable). */
+  ready: boolean;
   hasKey: boolean;
+  /** True when a Claude Code CLI executable was found on this computer. */
+  claudeCodeFound: boolean;
   keySource: "saved" | "environment" | "session" | "none";
   /** True when OS-level encryption is available for saving the key. */
   secureStorageAvailable: boolean;

@@ -129,8 +129,8 @@ function welcome(): HTMLElement {
       h(
         "p",
         { class: "muted" },
-        "Without an API key, the companion runs in offline mode with simple scripted replies (always labeled as offline). " +
-          "With your own Anthropic API key, conversations are answered by Claude. API usage is billed to your Anthropic account.",
+        "Without Claude, the companion runs in offline mode with simple scripted replies (always labeled as offline). " +
+          "To chat with Claude, use your Claude Pro or Max subscription through Claude Code, or your own Anthropic API key (billed per use).",
       ),
       h("div", { class: "buttons" }, h("button", { class: "primary", onclick: () => show("ai") }, "Set up Claude"), h("button", { onclick: () => window.close() }, "Maybe later")),
     ),
@@ -241,6 +241,7 @@ function ai(): HTMLElement {
   const s = state.settings;
   const a = state.ai;
   const status = h("div", { class: "status-line" });
+  const viaClaudeCode = s.aiProvider === "claude-code";
 
   const keyInput = h("input", { type: "password", placeholder: "sk-ant-…", "aria-label": "Anthropic API key", autocomplete: "off", spellcheck: "false" }) as HTMLInputElement;
   const persist = h("input", { type: "checkbox", "aria-label": "Remember key", disabled: !a.secureStorageAvailable }) as HTMLInputElement;
@@ -262,6 +263,68 @@ function ai(): HTMLElement {
     else toast("Model updated.");
   });
 
+  const link = (key: Parameters<typeof clawd.app.openLink>[0], text: string) =>
+    h("a", { href: "#", onclick: (e: Event) => (e.preventDefault(), clawd.app.openLink(key)) }, text);
+
+  const apiRows = [
+    row(
+      "API key",
+      h("span", {}, keyState, " ", link("console", "Get a key")),
+      h(
+        "span",
+        { class: "control" },
+        keyInput,
+        h(
+          "button",
+          {
+            class: "primary",
+            onclick: async () => {
+              const r = await clawd.ai.setKey(keyInput.value, persist.checked);
+              keyInput.value = "";
+              if (!r.ok) {
+                status.className = "status-line err";
+                status.textContent = r.error;
+                return;
+              }
+              if (!state.settings.aiEnabled) await set({ aiEnabled: true });
+              toast(r.stored === "saved" ? "Key saved securely." : "Key set for this session.");
+            },
+          },
+          "Save",
+        ),
+      ),
+    ),
+    row(
+      "Remember key",
+      a.secureStorageAvailable
+        ? "Encrypt the key with your OS account (Windows DPAPI) so you don't have to re-enter it."
+        : "OS encryption isn't available, so the key can only be kept for this session.",
+      persist,
+      { warn: !a.secureStorageAvailable },
+    ),
+  ];
+
+  const claudeCodeRow = row(
+    "Claude Code",
+    a.claudeCodeFound
+      ? h("span", {}, "Found on this computer. Make sure you've signed in by running ", h("code", {}, "claude"), " in a terminal once.")
+      : h("span", {}, "Not found. Install Claude Code and sign in with your Claude account. ", link("claudeCode", "How to install")),
+    h("span", {}),
+    { warn: !a.claudeCodeFound },
+  );
+
+  const callout = viaClaudeCode
+    ? [
+        h("li", {}, "Uses the Claude Code app on this computer, signed in with your Claude Pro or Max plan. Chats count toward that plan's usage limits; no API key is needed."),
+        h("li", {}, "Clawd Buddy never reads or stores your Claude sign-in. It only starts Claude Code, with no tools, files, or plugins, and reads the reply."),
+        h("li", {}, "Only your chat messages (plus any memory items you approved) are sent, through Claude Code to Anthropic."),
+      ]
+    : [
+        h("li", {}, "API usage is billed to your Anthropic account. ", link("pricing", "See pricing"), "."),
+        h("li", {}, "Only your chat messages (plus any memory items you approved) are sent — directly to Anthropic's API, nowhere else."),
+        h("li", {}, "Your key stays in the app's background process and is never shown to web pages or written to logs."),
+      ];
+
   return h(
     "section",
     { "data-section": "ai" },
@@ -269,64 +332,23 @@ function ai(): HTMLElement {
     h(
       "p",
       { class: "lead" },
-      "Optional. Connect your own Anthropic API key to chat with Claude. Without it, the companion stays in offline mode.",
+      "Optional. Chat with Claude using your Claude subscription (through Claude Code) or your own Anthropic API key. Without either, the companion stays in offline mode.",
     ),
-    h(
-      "div",
-      { class: "callout accent" },
-      h("p", {}, h("b", {}, "Before you start")),
-      h(
-        "ul",
-        { class: "steps" },
-        h("li", {}, "API usage is billed to your Anthropic account. ", h("a", { href: "#", onclick: (e: Event) => (e.preventDefault(), clawd.app.openLink("pricing")) }, "See pricing"), "."),
-        h(
-          "li",
-          {},
-          "Only your chat messages (plus any memory items you approved) are sent — directly to Anthropic's API, nowhere else.",
-        ),
-        h("li", {}, "Your key stays in the app's background process and is never shown to web pages or written to logs."),
-      ),
-    ),
+    h("div", { class: "callout accent" }, h("p", {}, h("b", {}, "Before you start")), h("ul", { class: "steps" }, ...callout)),
     h("h2", {}, "Connection"),
     h(
       "div",
       { class: "group" },
-      row("Enable Claude", "Use Claude for chat replies when a key is configured.", toggle("aiEnabled")),
+      row("Enable Claude", "Use Claude for chat replies when the connection below is set up.", toggle("aiEnabled")),
       row(
-        "API key",
-        h("span", {}, keyState, " ", h("a", { href: "#", onclick: (e: Event) => (e.preventDefault(), clawd.app.openLink("console")) }, "Get a key")),
-        h(
-          "span",
-          { class: "control" },
-          keyInput,
-          h(
-            "button",
-            {
-              class: "primary",
-              onclick: async () => {
-                const r = await clawd.ai.setKey(keyInput.value, persist.checked);
-                keyInput.value = "";
-                if (!r.ok) {
-                  status.className = "status-line err";
-                  status.textContent = r.error;
-                  return;
-                }
-                if (!state.settings.aiEnabled) await set({ aiEnabled: true });
-                toast(r.stored === "saved" ? "Key saved securely." : "Key set for this session.");
-              },
-            },
-            "Save",
-          ),
-        ),
+        "Connect with",
+        "A Claude subscription uses Claude Code on this computer. An API key is billed per use.",
+        select("aiProvider", [
+          ["claude-code", "Claude subscription (Claude Code)"],
+          ["api", "Anthropic API key"],
+        ]),
       ),
-      row(
-        "Remember key",
-        a.secureStorageAvailable
-          ? "Encrypt the key with your OS account (Windows DPAPI) so you don't have to re-enter it."
-          : "OS encryption isn't available, so the key can only be kept for this session.",
-        persist,
-        { warn: !a.secureStorageAvailable },
-      ),
+      ...(viaClaudeCode ? [claudeCodeRow] : apiRows),
       row("Model", "Which Claude model answers. Change only if you know you need to.", h("span", { class: "control" }, model)),
     ),
     h("datalist", { id: "models" }, ...SUGGESTED_MODELS.map((m) => h("option", { value: m }))),
@@ -336,7 +358,7 @@ function ai(): HTMLElement {
       h(
         "button",
         {
-          disabled: !a.hasKey,
+          disabled: viaClaudeCode ? false : !a.hasKey,
           onclick: async (e: Event) => {
             const btn = e.currentTarget as HTMLButtonElement;
             btn.disabled = true;
@@ -350,10 +372,14 @@ function ai(): HTMLElement {
         },
         "Test connection",
       ),
-      confirmButton("Remove key", "Click again to remove", async () => {
-        await clawd.ai.clearKey();
-        toast("API key removed.");
-      }),
+      ...(viaClaudeCode
+        ? []
+        : [
+            confirmButton("Remove key", "Click again to remove", async () => {
+              await clawd.ai.clearKey();
+              toast("API key removed.");
+            }),
+          ]),
       confirmButton("Clear chat history", "Click again to clear", async () => {
         await clawd.chat.clear();
         toast("Chat history cleared.");

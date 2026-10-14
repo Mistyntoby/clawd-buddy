@@ -1,5 +1,5 @@
 import { DEFAULT_MODEL, PLACEHOLDER_PACK_ID } from "./constants";
-import type { MovementSpeed, Personality, Settings } from "./types";
+import type { AiProvider, MovementSpeed, Personality, Settings } from "./types";
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   version: 1,
@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   openChatOnStartup: false,
   chatAlwaysOnTop: false,
   aiEnabled: false,
+  aiProvider: "api",
   model: DEFAULT_MODEL,
   memoryEnabled: false,
   spritePack: "auto",
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
 
 const SPEEDS: readonly MovementSpeed[] = ["slow", "normal", "fast"];
 const PERSONALITIES: readonly Personality[] = ["playful", "calm", "concise"];
+const PROVIDERS: readonly AiProvider[] = ["api", "claude-code"];
 const MODEL_ID = /^[a-z0-9][a-z0-9.\-_]{1,80}$/;
 const PACK_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -60,6 +62,7 @@ const VALIDATORS: Record<Exclude<keyof Settings, "version">, Validator> = {
   openChatOnStartup: bool,
   chatAlwaysOnTop: bool,
   aiEnabled: bool,
+  aiProvider: (v) => (PROVIDERS.includes(v as AiProvider) ? ok(v) : bad),
   model: (v) => (typeof v === "string" && MODEL_ID.test(v.trim()) ? ok(v.trim()) : bad),
   memoryEnabled: bool,
   spritePack: (v) => (typeof v === "string" && (v === "auto" || PACK_ID.test(v)) ? ok(v) : bad),

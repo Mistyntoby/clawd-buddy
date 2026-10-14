@@ -41,7 +41,7 @@ export interface SettingsInit {
   ai: AiStatus;
 }
 
-export type LinkKey = "console" | "pricing" | "docs" | "privacy";
+export type LinkKey = "console" | "claudeCode" | "pricing" | "docs" | "privacy";
 
 export type OpResult = { ok: true } | { ok: false; error: string };
 

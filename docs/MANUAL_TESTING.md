@@ -1,6 +1,6 @@
 # Manual test procedure
 
-Automated coverage: `npm test` (91 unit tests) and `npm run smoke` (21 runtime checks against the real app: windows, sprite loading, IPC policy, first-run flow, settings validation, walking, offline chat labeling, broken sprite packs, hide/show, on-screen placement).
+Automated coverage: `npm test` (105 unit tests) and `npm run smoke` (22 runtime checks against the real app: windows, sprite loading, IPC policy, first-run flow, settings validation, walking, offline chat labeling, broken sprite packs, hide/show, on-screen placement).
 
 The items below involve native OS UI (context menus, the tray, real mouse drags) that the smoke test doesn't drive. Run them before a release.
 
@@ -31,7 +31,11 @@ Start from a clean profile: quit the app and rename `%APPDATA%\Clawd Buddy` (or 
     - Click *Stop* mid-reply: the reply stops, "Stopped." appears, and Clawd returns to idle.
     - Use an invalid key: you get a friendly "key was rejected" message and Clawd looks confused.
     - Disconnect the network: you get the friendly network message.
-13. **Memory.** Type "remember that I like tea". A Save / Don't-save card appears (or a notice if memory is off). Saved items appear in Settings → Memory and can be edited and deleted.
-14. **Settings persistence.** Change speed, size, sounds, and always-on-top, then restart. All changes are kept. *Reset all settings* restores the defaults.
-15. **Launch at startup.** In the installed app the toggle is enabled and adds a login item; when running from source it's disabled with an explanation.
-16. **Sprites.** Settings → Character → *Open sprite folder*. Add a folder with a broken `manifest.json` and click *Reload*: the error is listed and the app keeps running. Add a valid pack containing only `idle`: it's used, and the other animations show "fallback".
+13. **Claude subscription** (needs Claude Code signed in with a Claude plan; counts toward its usage limits):
+    - Settings → AI: set *Connect with* to *Claude subscription*, enable Claude, and run *Test connection*. It names your plan.
+    - Chat: replies stream, *Stop* works, and the chat header shows "· subscription".
+    - Temporarily rename `claude.exe` and *Test connection*: you get "Claude Code wasn't found", and chat falls back to labeled offline replies.
+14. **Memory.** Type "remember that I like tea". A Save / Don't-save card appears (or a notice if memory is off). Saved items appear in Settings → Memory and can be edited and deleted.
+15. **Settings persistence.** Change speed, size, sounds, and always-on-top, then restart. All changes are kept. *Reset all settings* restores the defaults.
+16. **Launch at startup.** In the installed app the toggle is enabled and adds a login item; when running from source it's disabled with an explanation.
+17. **Sprites.** Settings → Character → *Open sprite folder*. Add a folder with a broken `manifest.json` and click *Reload*: the error is listed and the app keeps running. Add a valid pack containing only `idle`: it's used, and the other animations show "fallback".

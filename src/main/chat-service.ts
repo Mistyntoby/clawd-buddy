@@ -3,15 +3,15 @@ import { randomUUID } from "node:crypto";
 import { MAX_HISTORY_MESSAGES } from "../shared/constants";
 import type { ChatEvent, MemoryItem, Personality, TranscriptEntry } from "../shared/types";
 import { isAbortError, toFriendlyError } from "./chat-errors";
-import type { ChatStream, StreamFactory } from "./claude-client";
+import type { AiConnection, ChatStream, StreamFactory } from "./claude-client";
 import type { OfflineBrain } from "./offline-brain";
 import { buildSystemPrompt } from "./personality";
 
 const TRANSCRIPT_MAX = 200;
 
 export interface ChatContext {
-  aiEnabled: boolean;
-  apiKey: string | null;
+  /** How to reach Claude, or null for offline mode (AI disabled or not set up). */
+  connection: AiConnection | null;
   model: string;
   name: string;
   personality: Personality;
@@ -78,7 +78,7 @@ export class ChatService {
     if (this.active) return { ok: false, error: "Still answering the previous message." };
     const requestId = randomUUID();
 
-    if (!ctx.aiEnabled || !ctx.apiKey) {
+    if (!ctx.connection) {
       const reply = this.offline.reply(text, ctx.personality, ctx.name);
       this.record({ role: "user", text });
       this.record({ role: "assistant", text: reply, source: "offline" });
@@ -110,7 +110,7 @@ export class ChatService {
     let gotToken = false;
     try {
       const stream = this.factory({
-        apiKey: ctx.apiKey as string,
+        connection: ctx.connection as AiConnection,
         model: ctx.model,
         system: buildSystemPrompt({ name: ctx.name, personality: ctx.personality, memory: ctx.memory }),
         messages,

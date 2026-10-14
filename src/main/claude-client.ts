@@ -8,8 +8,13 @@ export interface ChatStream {
   abort(): void;
 }
 
+/** How a request reaches Claude. */
+export type AiConnection =
+  | { provider: "api"; apiKey: string }
+  | { provider: "claude-code"; cliPath: string; workDir: string };
+
 export interface StreamRequest {
-  apiKey: string;
+  connection: AiConnection;
   model: string;
   system: string;
   messages: Anthropic.MessageParam[];
@@ -34,7 +39,8 @@ function clientFor(apiKey: string): Anthropic {
  * a request on safety grounds, the API can retry on a suitable model.
  */
 export const anthropicStreamFactory: StreamFactory = (req) => {
-  const stream = clientFor(req.apiKey).beta.messages.stream({
+  if (req.connection.provider !== "api") throw new Error("anthropicStreamFactory needs an API-key connection.");
+  const stream = clientFor(req.connection.apiKey).beta.messages.stream({
     model: req.model,
     max_tokens: MAX_OUTPUT_TOKENS,
     system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }],

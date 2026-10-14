@@ -21,7 +21,8 @@ An unofficial desktop companion inspired by classic desktop pets like BonziBuddy
 - **Context menu.** Talk to Clawd, Open chat, Tell me something, What can you help with?, Wander toggle, Movement speed, Sounds, Settings, Hide, and Quit.
 - **System tray.** Click to show or hide the companion; right-click for chat, settings, toggles, and quit.
 - **Chat window.** Claude replies stream in, and you can cancel a reply with *Stop*. Clawd thinks while waiting, talks while streaming, and returns to idle when done.
-- **Offline mode.** Works without an API key. Replies are simple and scripted, and they're always labeled "Offline mode · scripted reply, not from Claude".
+- **Two ways to reach Claude.** Use your Claude Pro or Max subscription through a locally installed [Claude Code](https://docs.anthropic.com/en/docs/claude-code/setup), or your own Anthropic API key.
+- **Offline mode.** Works without either. Replies are simple and scripted, and they're always labeled "Offline mode · scripted reply, not from Claude".
 - **Opt-in memory.** Only facts you explicitly approve are saved, and you can view, edit, or delete them at any time.
 - **Settings.** Wandering, speed, always-on-top, sounds, character size, launch at startup (off by default), chat window options, AI setup, memory, sprite diagnostics, and reset.
 - **Sprite packs.** Add authorized artwork as a folder with a `manifest.json`. A diagnostics panel shows which animations loaded and which fall back.
@@ -30,7 +31,7 @@ An unofficial desktop companion inspired by classic desktop pets like BonziBuddy
 
 - Windows 10 or 11 (primary target). The code is kept portable for a later macOS release.
 - Node.js 20+ (developed with Node 24) and npm, to build from source.
-- Optional: an [Anthropic API key](https://console.anthropic.com/settings/keys) for Claude conversations.
+- Optional, for Claude conversations: [Claude Code](https://docs.anthropic.com/en/docs/claude-code/setup) signed in with a Claude subscription, or an [Anthropic API key](https://console.anthropic.com/settings/keys).
 
 ## Development setup
 
@@ -63,6 +64,16 @@ This writes `release/Clawd Buddy Setup <version>.exe`. The installer is per-user
 
 ## Configuring Claude (optional)
 
+### With your Claude subscription (Claude Code)
+
+1. Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code/setup) (on Windows, the native installer that provides `claude.exe`), run `claude` in a terminal once, and sign in with your Claude account.
+2. Open **Settings → AI (Claude)**, set **Connect with** to *Claude subscription (Claude Code)*, and turn on **Enable Claude**.
+3. Click **Test connection**. It runs `claude auth status`, which uses no usage, and reports your plan.
+
+How it works: for each message the app starts `claude -p` in an empty folder, with no tools, plugins, hooks, MCP servers, `CLAUDE.md` files, or saved session history, and streams back the reply. Chats count toward your plan's usage limits. Clawd Buddy never reads, copies, or stores Claude Code's sign-in; `ANTHROPIC_API_KEY` is removed from the CLI's environment, so it uses the subscription and doesn't quietly bill an API account. The app looks for `claude.exe` on `PATH` and in `%USERPROFILE%\.local\bin`; npm's `claude.cmd` shim isn't used, because the app never runs commands through a shell.
+
+### With an API key
+
 1. Get an API key from the [Anthropic Console](https://console.anthropic.com/settings/keys).
 2. Open **Settings → AI (Claude)** from the tray or the right-click menu.
 3. Paste the key and click **Save**. With *Remember key* on, the key is encrypted with your Windows account (DPAPI via Electron `safeStorage`). If OS encryption isn't available, the key is kept only for the current session.
@@ -70,7 +81,7 @@ This writes `release/Clawd Buddy Setup <version>.exe`. The installer is per-user
 
 Notes:
 
-- **API usage is billed to your Anthropic account.** See [pricing](https://www.anthropic.com/pricing).
+- **API key usage is billed to your Anthropic account.** See [pricing](https://www.anthropic.com/pricing).
 - The default model is set in one place, `src/shared/constants.ts` (`DEFAULT_MODEL`, currently `claude-opus-5-5`), and can be changed in Settings.
 - Replies use low reasoning effort and short answers to suit a chatty companion. The request enables the API's server-side refusal fallback (`fallbacks: "default"`).
 - As an alternative to saving a key, the app also reads an `ANTHROPIC_API_KEY` environment variable.
@@ -92,7 +103,7 @@ Never commit artwork you aren't allowed to redistribute. `assets/sprites/local/`
 ## Privacy and security
 
 - **Local only.** Settings, memory, and the encrypted API key are stored in `%APPDATA%\Clawd Buddy\`. There's no telemetry or analytics.
-- **What leaves your computer.** Only when Claude is enabled and a key is set: your chat messages, recent conversation context, and memory items you approved go **directly to Anthropic's API**, and nowhere else.
+- **What leaves your computer.** Only when Claude is enabled and set up: your chat messages, recent conversation context, and memory items you approved go **to Anthropic**, either directly to the API or through your local Claude Code, and nowhere else.
 - **What is never collected.** Files, keystrokes, clipboard, browser history, screenshots, or activity in other apps. The only OS signal used is the system idle time, so the companion can nap while you're away. It doesn't monitor other applications.
 - **No computer control.** The companion never executes commands or takes actions based on conversation text.
 - **Electron hardening.** Context isolation, sandboxed renderers, no Node integration, and a strict Content-Security-Policy. A narrow typed preload API is the only bridge to the main process. Every IPC message is checked against a per-window allow-list (`src/shared/ipc-policy.ts`) and validated before use. Navigation and new windows are blocked, and all permission requests are denied.
@@ -108,6 +119,9 @@ See [SECURITY.md](SECURITY.md) for how to report vulnerabilities.
 | It's in the way | Right-click it and choose **Hide**, turn off **Always on top**, or disable **Wander around**. |
 | It ended up off-screen after unplugging a monitor | It moves itself back automatically when displays change. Hide and show it from the tray to force a re-check. |
 | "Your API key was rejected" | Re-enter the key in Settings → AI and run **Test connection**. |
+| "Claude Code isn't signed in" | Run `claude` in a terminal, sign in, then **Test connection** again. |
+| "Claude Code wasn't found" | Install the native Claude Code build, or make sure `claude.exe` is on `PATH`, then **Test connection**. |
+| "You've hit your Claude plan's usage limit" | Wait for the limit to reset, or switch to an API key. |
 | "That model wasn't found" | Reset the model field in Settings → AI to a suggested value. |
 | Rate limited or overloaded | Wait a minute and try again. The app already retries transient errors. |
 | My sprite pack doesn't show | Settings → Character & sprites lists each pack with its errors (invalid JSON, missing `idle`, missing files). |

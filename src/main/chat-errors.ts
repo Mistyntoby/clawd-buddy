@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ChatErrorKind } from "../shared/types";
+import { ClaudeCodeError } from "./claude-code-client";
 
 export interface FriendlyError {
   kind: ChatErrorKind;
@@ -16,6 +17,7 @@ export function isAbortError(err: unknown): boolean {
  * Order matters: most specific classes first.
  */
 export function toFriendlyError(err: unknown): FriendlyError {
+  if (err instanceof ClaudeCodeError) return { kind: err.kind, message: err.message };
   if (err instanceof Anthropic.AuthenticationError) {
     return { kind: "auth", message: "Your API key was rejected. Check it in Settings → AI." };
   }

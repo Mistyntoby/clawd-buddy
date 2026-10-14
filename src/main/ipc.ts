@@ -15,8 +15,9 @@ import {
 import { toFriendlyError } from "./chat-errors";
 import type { ClawdApp } from "./clawd-app";
 import { testConnection } from "./claude-client";
+import { checkClaudeCode } from "./claude-code-client";
 
-const LINK_KEYS: readonly LinkKey[] = ["console", "pricing", "docs", "privacy"];
+const LINK_KEYS: readonly LinkKey[] = ["console", "claudeCode", "pricing", "docs", "privacy"];
 
 /**
  * Registers every IPC handler. Each one checks that the sender is one of our
@@ -133,6 +134,24 @@ export function registerIpc(app: ClawdApp, rendererDir: string): void {
     app.notifyAiStatusChanged();
   });
   handle("ai:test", async () => {
+    if (app.settings.get().aiProvider === "claude-code") {
+      const cliPath = app.claudeCodePath(true);
+      app.notifyAiStatusChanged();
+      if (!cliPath) return { ok: false, error: "Claude Code wasn't found on this computer. Install it, then test again." };
+      try {
+        const auth = await checkClaudeCode(cliPath);
+        if (!auth.loggedIn) {
+          return { ok: false, error: "Claude Code is installed but not signed in. Run `claude` in a terminal and sign in with your Claude account." };
+        }
+        if (auth.authMethod !== "claude.ai") {
+          return { ok: true, message: `Claude Code is ready, but it's signed in with "${auth.authMethod}", not a Claude subscription, so usage may be billed to that account.` };
+        }
+        const plan = auth.subscriptionType ? ` ${auth.subscriptionType.charAt(0).toUpperCase()}${auth.subscriptionType.slice(1)}` : "";
+        return { ok: true, message: `Connected! Claude Code is signed in with your Claude${plan} subscription.` };
+      } catch (err) {
+        return { ok: false, error: toFriendlyError(err).message };
+      }
+    }
     const { key } = app.secrets.getApiKey();
     if (!key) return { ok: false, error: "No API key is configured." };
     try {

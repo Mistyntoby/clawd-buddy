@@ -7,10 +7,12 @@ import type { AiStatus, CapabilityInfo, ChatEvent, Settings } from "../shared/ty
 import type { CompanionCommand, SettingsSection } from "../shared/validation";
 import { AssetProvider } from "./asset-provider";
 import { ChatService, type ChatHooks } from "./chat-service";
-import { anthropicStreamFactory, type StreamFactory } from "./claude-client";
+import type { AiConnection, StreamFactory } from "./claude-client";
+import { findClaudeCli } from "./claude-code-client";
 import { CompanionController } from "./companion-controller";
 import { OfflineBrain } from "./offline-brain";
 import { SecretStore } from "./secure-storage";
+import { defaultStreamFactory } from "./stream-factory";
 import { MemoryStore, SettingsStore } from "./settings";
 import { TrayController } from "./tray";
 import { WindowManager } from "./window-manager";
@@ -25,6 +27,7 @@ export interface AppPaths {
 
 const LINKS: Record<LinkKey, string> = {
   console: "https://console.anthropic.com/settings/keys",
+  claudeCode: "https://docs.anthropic.com/en/docs/claude-code/setup",
   pricing: "https://www.anthropic.com/pricing",
   docs: "https://docs.anthropic.com/",
   privacy: "https://www.anthropic.com/legal/privacy",
@@ -49,7 +52,7 @@ export class ClawdApp {
 
   constructor(
     readonly paths: AppPaths,
-    streamFactory: StreamFactory = anthropicStreamFactory,
+    streamFactory: StreamFactory = defaultStreamFactory,
   ) {
     this.settings = new SettingsStore(paths.userData);
     this.memory = new MemoryStore(paths.userData);
@@ -243,16 +246,47 @@ export class ClawdApp {
 
   // ---- chat --------------------------------------------------------------------------
 
+  private cliPath: string | null | undefined;
+
+  /** Path of the Claude Code CLI, looked up once and again on request (e.g. after installing it). */
+  claudeCodePath(refresh = false): string | null {
+    if (refresh || this.cliPath === undefined) this.cliPath = findClaudeCli();
+    return this.cliPath;
+  }
+
+  /** Empty folder the CLI runs in, so it never picks up project files or CLAUDE.md. */
+  private claudeCodeWorkDir(): string {
+    const dir = path.join(this.paths.userData, "claude-code");
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  /** How chat reaches Claude right now, or null when replies are offline. */
+  aiConnection(): AiConnection | null {
+    const s = this.settings.get();
+    if (!s.aiEnabled) return null;
+    if (s.aiProvider === "claude-code") {
+      const cliPath = this.claudeCodePath();
+      return cliPath ? { provider: "claude-code", cliPath, workDir: this.claudeCodeWorkDir() } : null;
+    }
+    const { key } = this.secrets.getApiKey();
+    return key ? { provider: "api", apiKey: key } : null;
+  }
+
   aiReady(): boolean {
-    return this.settings.get().aiEnabled && this.secrets.getApiKey().key !== null;
+    return this.aiConnection() !== null;
   }
 
   aiStatus(): AiStatus {
     const s = this.settings.get();
     const { key, source } = this.secrets.getApiKey();
+    const found = this.claudeCodePath() !== null;
     return {
       enabled: s.aiEnabled,
+      provider: s.aiProvider,
+      ready: s.aiEnabled && (s.aiProvider === "claude-code" ? found : key !== null),
       hasKey: key !== null,
+      claudeCodeFound: found,
       keySource: source,
       secureStorageAvailable: this.secrets.encryptionAvailable,
       model: s.model,
@@ -271,8 +305,7 @@ export class ClawdApp {
     return this.chat.send(
       text,
       {
-        aiEnabled: s.aiEnabled,
-        apiKey: this.secrets.getApiKey().key,
+        connection: this.aiConnection(),
         model: s.model,
         name: s.companionName,
         personality: s.personality,
@@ -330,7 +363,7 @@ export class ClawdApp {
     if (has("characterScale") || has("showPlaceholderLabel") || has("soundEnabled") || has("companionName")) {
       this.windows.sendCompanion("companion:config", this.companionConfig());
     }
-    if (has("aiEnabled") || has("model") || has("companionName") || has("memoryEnabled")) {
+    if (has("aiEnabled") || has("aiProvider") || has("model") || has("companionName") || has("memoryEnabled")) {
       this.windows.sendChat("chat:status-changed", null);
     }
     this.windows.sendSettings("settings:changed", this.settingsInit());

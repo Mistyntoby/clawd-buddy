@@ -88,6 +88,15 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
       check("setting change applied", clawd.settings.get().movementSpeed === "fast");
       const bad = await js(s, "window.clawd.settings.set({ characterScale: 99 })");
       check("invalid setting rejected", (bad as { ok: boolean }).ok === false);
+      // Subscription provider: selectable, rendered, and still offline while AI is disabled.
+      await js(s, "window.clawd.settings.set({ aiProvider: 'claude-code' })");
+      clawd.windows.sendSettings("settings:navigate", "ai");
+      const providerShown = await waitFor(
+        async () => (await js(s, "document.querySelector('select[aria-label=aiProvider]')?.value")) === "claude-code",
+        3_000,
+      );
+      check("Claude subscription provider selectable", providerShown && clawd.aiConnection() === null);
+      await js(s, "window.clawd.settings.set({ aiProvider: 'api' })");
     }
 
     // Movement: force a wander and confirm the window moves within the screen.
