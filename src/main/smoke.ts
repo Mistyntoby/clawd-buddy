@@ -193,7 +193,13 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
         if (m) minY = Math.min(minY, Number(m[1]));
       }
       const midBounce = clawd.windows.getPosition();
-      check("drop plays a bounce (transform) without moving the window", minY < -6 && midBounce.x === expected.x && midBounce.y === expected.y, `hop ${minY.toFixed(1)} px`);
+      // CI machines often have the OS "reduce motion" setting on; then there must be no hop at all.
+      const osReduce = (await js(companion, "matchMedia('(prefers-reduced-motion: reduce)').matches")) === true;
+      check(
+        osReduce ? "drop bounce is skipped under the OS reduce-motion setting; window stays put" : "drop plays a bounce (transform) without moving the window",
+        (osReduce ? minY === 0 : minY < -6) && midBounce.x === expected.x && midBounce.y === expected.y,
+        `hop ${minY.toFixed(1)} px, reduce motion ${osReduce}`,
+      );
       await wait(900);
       const settled = clawd.windows.getPosition();
       check("landing doesn't move the window", settled.x === expected.x && settled.y === expected.y && clawd.controller.state !== "land", JSON.stringify(settled));
