@@ -3,6 +3,7 @@ import { MOTION } from "../../shared/constants";
 import type { CompanionLayout } from "../../shared/layout";
 import type { AnimationName, CompanionView, SpeechPayload, SpritePackInfo } from "../../shared/types";
 import { SpritePlayer } from "../animation/player";
+import { Bounce } from "../animation/bounce";
 import { Squash } from "../animation/squash";
 import { $, api } from "../common/dom";
 import { playSound } from "./sound";
@@ -17,7 +18,12 @@ const inputbar = $("#inputbar") as HTMLFormElement;
 const say = $("#say") as HTMLInputElement;
 
 const clawd = api();
-let config: CompanionConfig = { scale: 3, reducedMotion: false, animationIntensity: "normal", soundEnabled: true, name: "Clawd" };
+let config: CompanionConfig = { scale: 3, chatBoxColor: "#4a5345", reducedMotion: false, animationIntensity: "normal", soundEnabled: true, name: "Clawd" };
+
+/** Colors the chat box and speech bubble borders. Only well-formed #rrggbb values are applied. */
+function applyChatBoxColor(color: string): void {
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) document.documentElement.style.setProperty("--term-edge", color);
+}
 let pack: SpritePackInfo | null = null;
 let layout: CompanionLayout | null = null;
 let view: CompanionView | null = null;
@@ -27,6 +33,14 @@ const player = new SpritePlayer(canvas, (empty) => {
   updateDiagnostics();
 });
 const squash = new Squash({ stiffness: MOTION.squash.stiffness, damping: MOTION.squash.damping });
+/** How much the current animation intensity scales decorative motion. */
+const intensityScale = (): number => MOTION.intensity[config.animationIntensity]?.squash ?? 1;
+// Each touch-down of the drop bounce squashes him a little, harder for the bigger bounces.
+const bounce = new Bounce(MOTION.dropBounce, (strength) => {
+  const k = MOTION.squash.land;
+  const s = Math.max(0.25, strength) * 0.8 * intensityScale();
+  squash.kick({ scaleX: 1 + (k.scaleX - 1) * s, scaleY: 1 + (k.scaleY - 1) * s });
+});
 
 const osReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const reducedMotion = (): boolean => config.reducedMotion || osReducedMotion.matches;
@@ -118,6 +132,7 @@ async function applyPack(next: SpritePackInfo): Promise<void> {
 function motionFor(prev: AnimationName | null, next: AnimationName): void {
   if (reducedMotion()) {
     squash.reset();
+    bounce.stop();
     return;
   }
   const hasFrames = (name: AnimationName) => !!pack?.animations[name];
@@ -127,6 +142,7 @@ function motionFor(prev: AnimationName | null, next: AnimationName): void {
     hasFrames(name) ? { scaleX: 1 + (s.scaleX - 1) * 0.5, scaleY: 1 + (s.scaleY - 1) * 0.5 } : s;
   switch (next) {
     case "pickup":
+      bounce.stop();
       squash.kick(soften(k.pickup, "pickup"));
       squash.setRest(hasFrames("drag") ? { scaleX: 1, scaleY: 1 } : k.carry);
       break;
@@ -134,8 +150,10 @@ function motionFor(prev: AnimationName | null, next: AnimationName): void {
       squash.setRest(hasFrames("drag") ? { scaleX: 1, scaleY: 1 } : k.carry);
       break;
     case "land":
+      // Impact squash, then a little hop with diminishing bounces (all inside the window).
       squash.setRest({ scaleX: 1, scaleY: 1 });
       squash.kick(soften(k.land, "land"));
+      bounce.start(Math.min(1.3, Math.max(0.6, intensityScale())));
       break;
     case "happy":
       squash.setRest({ scaleX: 1, scaleY: 1 });
@@ -167,7 +185,11 @@ function frame(now: number): void {
   lastFrameTime = now;
   player.tick(now);
   const s = squash.update(dt);
-  character.style.transform = s.scaleX === 1 && s.scaleY === 1 ? "" : `scale(${s.scaleX.toFixed(4)}, ${s.scaleY.toFixed(4)})`;
+  const y = bounce.update(dt);
+  const parts: string[] = [];
+  if (y !== 0) parts.push(`translateY(${y.toFixed(2)}px)`);
+  if (s.scaleX !== 1 || s.scaleY !== 1) parts.push(`scale(${s.scaleX.toFixed(4)}, ${s.scaleY.toFixed(4)})`);
+  character.style.transform = parts.join(" ");
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -438,11 +460,18 @@ clawd.companion.onPack((p) => void applyPack(p));
 clawd.companion.onLayout(applyLayout);
 clawd.companion.onConfig((c) => {
   config = c;
+  applyChatBoxColor(c.chatBoxColor);
   character.setAttribute("aria-label", c.name);
-  if (reducedMotion()) squash.reset();
+  if (reducedMotion()) {
+    squash.reset();
+    bounce.stop();
+  }
 });
 osReducedMotion.addEventListener("change", () => {
-  if (reducedMotion()) squash.reset();
+  if (reducedMotion()) {
+    squash.reset();
+    bounce.stop();
+  }
 });
 window.addEventListener("resize", () => placeBubble());
 
@@ -450,6 +479,7 @@ void (async () => {
   try {
     const init = await clawd.companion.ready();
     config = init.config;
+    applyChatBoxColor(init.config.chatBoxColor);
     character.setAttribute("aria-label", init.config.name);
     applyLayout(init.layout);
     await applyPack(init.pack);

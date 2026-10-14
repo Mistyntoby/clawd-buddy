@@ -19,6 +19,8 @@ export type Unsubscribe = () => void;
 
 export interface CompanionConfig {
   scale: number;
+  /** Border color of the chat box and speech bubble (#rrggbb). */
+  chatBoxColor: string;
   reducedMotion: boolean;
   animationIntensity: AnimationIntensity;
   soundEnabled: boolean;

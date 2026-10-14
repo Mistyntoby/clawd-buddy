@@ -32,6 +32,19 @@ export const MAX_MEMORY_ITEM_CHARS = 300;
 /** Sprite base frame size is defined per pack; the window adds room for the speech bubble above and the chat input below. */
 export const BUBBLE_AREA_HEIGHT = 190;
 export const COMPANION_MIN_WIDTH = 320;
+/** Chat box border color presets (Settings → Behavior → Chat box color). The first is the default. */
+export const CHAT_BOX_COLORS: readonly { name: string; color: string }[] = [
+  { name: "Terminal gray", color: "#4a5345" },
+  { name: "Phosphor green", color: "#3fbf6f" },
+  { name: "Amber", color: "#e0a030" },
+  { name: "Clawd orange", color: "#d97757" },
+  { name: "Ice blue", color: "#4f9fd9" },
+  { name: "Magenta", color: "#d94fa8" },
+  { name: "Violet", color: "#8a63d9" },
+  { name: "White", color: "#e8e8e8" },
+];
+export const DEFAULT_CHAT_BOX_COLOR = "#4a5345";
+
 /** Height of the inline terminal input under Clawd (transparent and click-through while closed). */
 export const INPUT_AREA_HEIGHT = 40;
 
@@ -85,6 +98,17 @@ export const MOTION = {
     calm: { idleScale: 1.6, extras: 0.5, squash: 0.5 },
     normal: { idleScale: 1, extras: 1, squash: 1 },
     lively: { idleScale: 0.6, extras: 1.5, squash: 1.25 },
+  },
+  /**
+   * The hop when Clawd is dropped (a transform on the sprite; the window never
+   * moves): launch ~17 px up, then bounces that lose 60% of their speed each
+   * touch-down, done in about a third of a second.
+   */
+  dropBounce: {
+    launchSpeed: 300,
+    gravity: 2600,
+    restitution: 0.4,
+    restSpeed: 70,
   },
   /** Minimum time between two petting reactions, ms. */
   petCooldownMs: 2500,

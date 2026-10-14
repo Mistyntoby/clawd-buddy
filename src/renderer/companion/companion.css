@@ -213,11 +213,13 @@ body {
   display: none;
 }
 #inputbar.focused {
+  /* A brighter shade of the chosen border color while you're typing. */
+  --term-edge-focus: color-mix(in srgb, var(--term-edge) 70%, white);
   box-shadow:
-    0 calc(var(--px) * -1) 0 0 var(--term-dim),
-    0 var(--px) 0 0 var(--term-dim),
-    calc(var(--px) * -1) 0 0 0 var(--term-dim),
-    var(--px) 0 0 0 var(--term-dim),
+    0 calc(var(--px) * -1) 0 0 var(--term-edge-focus),
+    0 var(--px) 0 0 var(--term-edge-focus),
+    calc(var(--px) * -1) 0 0 0 var(--term-edge-focus),
+    var(--px) 0 0 0 var(--term-edge-focus),
     var(--px) calc(var(--px) * 2) 0 0 rgba(0, 0, 0, 0.35);
 }
 #inputbar .prompt {
@@ -251,8 +253,8 @@ body {
   background: var(--term-edge);
   cursor: pointer;
   box-shadow:
-    inset 2px 2px 0 #6c7966,
-    inset -2px -2px 0 #2a2f27;
+    inset 2px 2px 0 color-mix(in srgb, var(--term-edge) 65%, white),
+    inset -2px -2px 0 color-mix(in srgb, var(--term-edge) 55%, black);
 }
 #expand span {
   display: block;
@@ -263,7 +265,7 @@ body {
   border-top-width: 4px;
 }
 #expand:hover {
-  background: #5a6554;
+  background: color-mix(in srgb, var(--term-edge) 85%, white);
 }
 #expand:focus-visible {
   outline: 2px solid var(--term-amber);

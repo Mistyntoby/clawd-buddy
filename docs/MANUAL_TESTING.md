@@ -18,7 +18,7 @@ Start from a clean profile: quit the app and rename the data folder (Windows `%A
 6. **Petting.** Rub the pointer quickly back and forth over him (without pressing): a happy reaction and a short bubble; rubbing on and on doesn't spam reactions (cooldown).
 7. **Drag and drop** (mouse, then trackpad):
    - Press and move: a short crouch, then the arms-up carried pose; he follows the pointer smoothly without lag or stutter, also when moving fast and on a high-refresh display.
-   - Release: he lands exactly where you let go (squash, small bounce) and stays there. The window never shifts during or after the landing.
+   - Release: he lands exactly where you let go: impact squash, a small hop, one or two lower bounces, rest. The window never shifts during or after the landing; with Reduce motion there's no hop.
    - Repeat 10+ times without restarting, while idle, walking, talking, and thinking (send a chat message, then drag during the reply).
    - Fling quickly and release outside his old position: no stuck drag, no jump.
    - Release over another window, Alt-Tab / Cmd-Tab mid-drag, press Esc mid-drag: the drag always ends cleanly where he is.

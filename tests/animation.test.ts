@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { frameAt } from "../src/renderer/animation/player";
+import { Bounce } from "../src/renderer/animation/bounce";
 import { Squash } from "../src/renderer/animation/squash";
 import { MOTION } from "../src/shared/constants";
 import { companionLayout } from "../src/shared/layout";
@@ -178,5 +179,35 @@ describe("manifest: loop points, variants, body box, fallbacks", () => {
     expect(resolveFallback("idle-variation", only(["idle"]))).toBe("idle");
     expect(resolveFallback("wave", only(["idle", "action"]))).toBe("action");
     expect(resolveFallback("wave", only([]))).toBeNull();
+  });
+});
+
+describe("drop bounce", () => {
+  it("hops up, bounces lower each time, and rests exactly on the drop spot", () => {
+    const impacts: number[] = [];
+    const b = new Bounce(MOTION.dropBounce, (s) => impacts.push(s));
+    b.start();
+    const ys: number[] = [];
+    let t = 0;
+    while (b.running && t < 3000) {
+      ys.push(b.update(16));
+      t += 16;
+    }
+    expect(b.running).toBe(false);
+    expect(b.update(16)).toBe(0);
+    expect(Math.min(...ys)).toBeLessThan(-12); // a visible hop (y is negative upward)
+    expect(Math.min(...ys)).toBeGreaterThan(-25); // but not a big jump
+    expect(Math.max(...ys)).toBeLessThanOrEqual(0); // never sinks below the drop spot
+    expect(impacts.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < impacts.length; i++) expect(impacts[i]!).toBeLessThan(impacts[i - 1]!);
+    expect(t).toBeLessThan(600); // quick
+  });
+  it("can be stopped at any time (e.g. picked up again mid-bounce)", () => {
+    const b = new Bounce(MOTION.dropBounce);
+    b.start();
+    b.update(50);
+    b.stop();
+    expect(b.running).toBe(false);
+    expect(b.update(16)).toBe(0);
   });
 });

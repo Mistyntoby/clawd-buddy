@@ -1,6 +1,6 @@
 import type { PackSummary, SettingsInit } from "../../shared/api";
 import { dayLabel, describeDue, REMINDER_HELP } from "../../shared/reminders";
-import { SUGGESTED_MODELS } from "../../shared/constants";
+import { CHAT_BOX_COLORS, SUGGESTED_MODELS } from "../../shared/constants";
 import { MAX_SCALE, MIN_SCALE } from "../../shared/settings-schema";
 import { ANIMATION_NAMES, type MemoryItem, type Settings, type SpritePackInfo } from "../../shared/types";
 import type { SettingsSection } from "../../shared/validation";
@@ -177,6 +177,35 @@ async function importClawd(after?: () => void): Promise<void> {
   after?.();
 }
 
+/** Preset swatches plus a custom color picker for the chat box border. */
+function chatBoxColorControl(): HTMLElement {
+  const current = state.settings.chatBoxColor.toLowerCase();
+  const custom = h("input", { type: "color", "aria-label": "Custom chat box color", title: "Custom color" }) as HTMLInputElement;
+  custom.value = current;
+  const choose = async (color: string) => {
+    if (await set({ chatBoxColor: color })) custom.value = color;
+  };
+  custom.addEventListener("change", () => void choose(custom.value));
+  return h(
+    "span",
+    { class: "control swatches", role: "radiogroup", "aria-label": "Chat box color" },
+    ...CHAT_BOX_COLORS.map((p) => {
+      const b = h("button", {
+        class: `swatch${p.color === current ? " selected" : ""}`,
+        role: "radio",
+        "aria-checked": String(p.color === current),
+        "aria-label": p.name,
+        title: p.name,
+        onclick: () => void choose(p.color),
+      });
+      // Set through CSSOM: the page's CSP doesn't allow inline style attributes.
+      b.style.setProperty("--swatch", p.color);
+      return b;
+    }),
+    custom,
+  );
+}
+
 function behavior(): HTMLElement {
   const s = state.settings;
   const caps = state.capabilities;
@@ -262,6 +291,7 @@ function behavior(): HTMLElement {
           ["window", "Terminal window"],
         ]),
       ),
+      row("Chat box color", "Border color of the chat box under Clawd and of his speech bubble.", chatBoxColorControl()),
       row("Open chat window on startup", null, toggle("openChatOnStartup")),
       row("Keep chat window on top", null, toggle("chatAlwaysOnTop")),
       row("Keep chat history", "Remember the recent conversation (last 100 lines) on this computer between restarts.", toggle("keepChatHistory")),

@@ -56,6 +56,8 @@ export interface Settings {
   characterScale: number;
   idleChatter: IdleChatter;
   chatMode: ChatMode;
+  /** Border color of the chat box under Clawd and his speech bubble, as #rrggbb. */
+  chatBoxColor: string;
   animationIntensity: AnimationIntensity;
   /** Keep the recent conversation on this computer between restarts. */
   keepChatHistory: boolean;

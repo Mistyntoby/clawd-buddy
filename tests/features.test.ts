@@ -116,6 +116,11 @@ describe("settings for the new features", () => {
     expect(validateSettingsPatch({ idleChatter: "loud" }).ok).toBe(false);
     expect(validateSettingsPatch({ animationIntensity: 11 }).ok).toBe(false);
   });
+  it("validates the chat box color", () => {
+    expect(validateSettingsPatch({ chatBoxColor: "#D97757" })).toEqual({ ok: true, patch: { chatBoxColor: "#d97757" } });
+    for (const bad of ["red", "#fff", "#12345g", "url(x)", "#1234567", 5]) expect(validateSettingsPatch({ chatBoxColor: bad }).ok).toBe(false);
+    expect(sanitizeSettings({ chatBoxColor: "javascript:" }).chatBoxColor).toBe("#4a5345");
+  });
   it("migrates the old 'occasional comments' switch", () => {
     expect(sanitizeSettings({ ambientComments: false }).idleChatter).toBe("off");
     expect(sanitizeSettings({ ambientComments: true }).idleChatter).toBe("quiet");

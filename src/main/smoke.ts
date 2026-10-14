@@ -184,6 +184,16 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
       const dropped = clawd.windows.getPosition();
       check("window stays exactly at the drop position", dropped.x === expected.x && dropped.y === expected.y, `${JSON.stringify(dropped)} vs ${JSON.stringify(expected)}`);
       check("carried pose while held, landing after release", ["pickup", "drag"].includes(statesSeen) && clawd.controller.state === "land", `${statesSeen} -> ${clawd.controller.state}`);
+      // The drop bounce is a transform on the sprite: it moves Clawd up and back down inside the window.
+      let minY = 0;
+      for (let i = 0; i < 12; i++) {
+        await wait(25);
+        const tf = String(await js(companion, "document.querySelector('#character').style.transform"));
+        const m = /translateY\((-?[\d.]+)px\)/.exec(tf);
+        if (m) minY = Math.min(minY, Number(m[1]));
+      }
+      const midBounce = clawd.windows.getPosition();
+      check("drop plays a bounce (transform) without moving the window", minY < -6 && midBounce.x === expected.x && midBounce.y === expected.y, `hop ${minY.toFixed(1)} px`);
       await wait(900);
       const settled = clawd.windows.getPosition();
       check("landing doesn't move the window", settled.x === expected.x && settled.y === expected.y && clawd.controller.state !== "land", JSON.stringify(settled));
@@ -275,6 +285,13 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
       await typeCommand("/todo water the plants");
       const todoAdded = await waitFor(() => clawd.todos.list().some((t) => t.text === "water the plants"), 3_000);
       check("/todo adds a to-do", todoAdded);
+      clawd.settings.update({ chatBoxColor: "#d97757" });
+      await wait(300);
+      clawd.runCommand("open-chat");
+      await wait(300);
+      const edge = await js(companion, "getComputedStyle(document.documentElement).getPropertyValue('--term-edge').trim()");
+      check("chat box border color follows the setting", String(edge).toLowerCase() === "#d97757", String(edge));
+      clawd.windows.sendCompanion("companion:input", "close");
       if (clawd.windows.settings && !clawd.windows.settings.isDestroyed()) {
         clawd.windows.sendSettings("settings:navigate", "reminders");
         await wait(500);

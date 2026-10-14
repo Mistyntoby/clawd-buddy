@@ -1,4 +1,4 @@
-import { DEFAULT_MODEL, PLACEHOLDER_PACK_ID } from "./constants";
+import { DEFAULT_CHAT_BOX_COLOR, DEFAULT_MODEL, PLACEHOLDER_PACK_ID } from "./constants";
 import type { AiProvider, AnimationIntensity, ChatMode, IdleChatter, MovementSpeed, Personality, Settings } from "./types";
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   characterScale: 3,
   idleChatter: "quiet",
   chatMode: "inline",
+  chatBoxColor: DEFAULT_CHAT_BOX_COLOR,
   animationIntensity: "normal",
   keepChatHistory: true,
   readAloud: false,
@@ -33,6 +34,7 @@ const PERSONALITIES: readonly Personality[] = ["playful", "calm", "concise"];
 const PROVIDERS: readonly AiProvider[] = ["api", "claude-code"];
 const CHATTER: readonly IdleChatter[] = ["off", "quiet", "chatty"];
 const CHAT_MODES: readonly ChatMode[] = ["inline", "window"];
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 const INTENSITY: readonly AnimationIntensity[] = ["calm", "normal", "lively"];
 const MODEL_ID = /^[a-z0-9][a-z0-9.\-_]{1,80}$/;
 const PACK_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -66,6 +68,7 @@ const VALIDATORS: Record<Exclude<keyof Settings, "version">, Validator> = {
     typeof v === "number" && Number.isInteger(v) && v >= MIN_SCALE && v <= MAX_SCALE ? ok(v) : bad,
   idleChatter: (v) => (CHATTER.includes(v as IdleChatter) ? ok(v) : bad),
   chatMode: (v) => (CHAT_MODES.includes(v as ChatMode) ? ok(v) : bad),
+  chatBoxColor: (v) => (typeof v === "string" && HEX_COLOR.test(v) ? ok(v.toLowerCase()) : bad),
   animationIntensity: (v) => (INTENSITY.includes(v as AnimationIntensity) ? ok(v) : bad),
   keepChatHistory: bool,
   readAloud: bool,

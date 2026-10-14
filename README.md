@@ -16,13 +16,13 @@ An unofficial desktop companion in the spirit of BonziBuddy and Clippy, starring
 - **Lives on your desktop.** A transparent, frameless window that stays on top (optional). Only Clawd's visible pixels catch the mouse; everything around him clicks through to the apps underneath. No label or text under him.
 - **Click him to chat.** A small terminal-style input line appears right under him (above his head if he's standing on the taskbar). Type, press Enter, and he answers in a pixel-terminal speech bubble that types out like an old computer; long replies scroll. Esc closes it. While Claude answers he thinks, then types on his laptop as the reply streams in, and he stays put while you're typing.
 - **Optional chat window.** The full `CLAWD://TERMINAL` window (history, memory approvals) opens from the ▣ button on the input, the right-click menu, or by setting **Chat style** to *Terminal window* in Settings.
-- **Pick him up.** Drag him anywhere: he crouches, gets lifted into his carried pose, follows the pointer at your display's full refresh rate, and stays **exactly** where you let go, with a little squash-and-bounce landing. Wandering pauses while you hold him.
+- **Pick him up.** Drag him anywhere: he crouches, gets lifted into his carried pose, follows the pointer at your display's full refresh rate, and stays **exactly** where you let go: he lands with a squash and a little hop that bounces lower each time (a transform on the sprite; the window itself doesn't move). Wandering pauses while you hold him.
 - **Personality.** Wanders in short trips with pauses, looks around, sways, does a hula, has lightbulb moments, naps (meditates) when you're away, and waves hello. Rub the pointer over him to pet him.
 - **Quick actions** (right-click): Chat, Tell a joke, Fun fact, Pet, Do a trick, Reminders, Wander, speed, Sounds, Settings, Hide, Quit.
 - **Reminders and to-dos.** "10m stretch", "at 15:30 standup": he pops up with a speech bubble when one is due. A small to-do list too (`/todo buy milk`). Settings → Reminders & to-dos shows an agenda by day. Stored only on your computer.
 - **Chat commands:** `/joke`, `/fact`, `/pet`, `/trick`, `/remind`, `/reminders`, `/done`, `/forget`, `/todo`, `/search`, `/clear`, `/help`.
 - **Claude, three ways:** your Claude Pro/Max subscription through [Claude Code](https://docs.anthropic.com/en/docs/claude-code/setup), your own Anthropic API key, or offline mode (scripted replies, always labeled as not from Claude).
-- **Settings:** idle chatter (off / quiet / chatty), animation intensity, reduce motion, sounds, size, always on top, launch at startup, chat history (kept locally, clearable), read replies aloud, opt-in memory.
+- **Settings:** chat box color (presets or any color), idle chatter (off / quiet / chatty), animation intensity, reduce motion, sounds, size, always on top, launch at startup, chat history (kept locally, clearable), read replies aloud, opt-in memory.
 
 ## Quick start
 

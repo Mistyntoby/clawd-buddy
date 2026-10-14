@@ -1,5 +1,11 @@
 # Progress log
 
+## 2026-10-14: Chat box color, drop bounce
+
+- **Chat box color** (Settings → Behavior): eight presets plus a custom color picker. It colors the border of the input under Clawd and of his speech bubble (a brighter shade while you type). Validated as `#rrggbb`; swatch colors are set through CSSOM because the settings page's CSP forbids inline styles.
+- **Drop bounce:** when Clawd is dropped he squashes, hops up about 17 px, and bounces lower each time (40% of the speed kept per touch-down), squashing a little at every impact, all in about a third of a second. It's a `translateY` plus `scale` transform on the sprite, so the window stays exactly at the drop point; picking him up again cancels it; scaled by animation intensity; off with Reduce motion. Smoke check measured a 16.9 px hop with an unchanged window position.
+- Tests: 160 unit tests; 44 smoke checks on Windows.
+
 ## 2026-10-14: Live subscription chat verified in the app; to-dos and agenda
 
 - **Verified live inside the running Electron app:** a real message through the local Claude Code subscription (Claude Pro) came back from Claude, labeled as Claude, and Clawd went from thinking to talking. This is an opt-in smoke check (`CLAWD_SMOKE_LIVE=1`), never run in CI.

@@ -445,6 +445,7 @@ export class ClawdApp {
     return {
       scale: s.characterScale,
       reducedMotion: s.reducedMotion,
+      chatBoxColor: s.chatBoxColor,
       animationIntensity: s.animationIntensity,
       soundEnabled: s.soundEnabled,
       name: s.companionName,
@@ -738,7 +739,7 @@ export class ClawdApp {
       this.relayout();
       this.controller.ensureOnScreen();
     }
-    if (has("characterScale") || has("reducedMotion") || has("animationIntensity") || has("soundEnabled") || has("companionName")) {
+    if (has("characterScale") || has("reducedMotion") || has("animationIntensity") || has("soundEnabled") || has("companionName") || has("chatBoxColor")) {
       this.windows.sendCompanion("companion:config", this.companionConfig());
     }
     if (has("aiEnabled") || has("aiProvider") || has("model") || has("companionName") || has("memoryEnabled") || has("readAloud") || has("reducedMotion")) {
