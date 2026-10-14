@@ -81,6 +81,10 @@ const mac: PlatformAdapter = {
     type: "panel",
     hasShadow: false,
     roundedCorners: false,
+    // macOS normally keeps a window's top edge below the menu bar. The companion window has a
+    // transparent speech-bubble area above Clawd, so that would stop him from being dropped near
+    // the top of the screen. For frameless windows this lets the app place the window exactly.
+    enableLargerThanScreen: true,
   }),
   setAlwaysOnTop(win, on) {
     win.setAlwaysOnTop(on, "floating");

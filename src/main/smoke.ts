@@ -191,6 +191,7 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
 
       // Five more drags in a row, including one whose release is never reported.
       let ok = true;
+      const misses: string[] = [];
       for (let n = 0; n < 5; n++) {
         const from = clawd.windows.getPosition();
         cursor = { x: from.x + body.x + 12, y: from.y + body.y + 12 };
@@ -202,10 +203,14 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
         if (n === 3) continue; // lost release: the next grab must still work
         clawd.controller.release();
         const at = clawd.windows.getPosition();
-        ok &&= at.x === to.x - body.x - 12 && at.y === to.y - body.y - 12;
+        const want = { x: to.x - body.x - 12, y: to.y - body.y - 12 };
+        if (at.x !== want.x || at.y !== want.y) {
+          ok = false;
+          misses.push(`${JSON.stringify(at)}≠${JSON.stringify(want)}`);
+        }
         await wait(50);
       }
-      check("repeated drags all land exactly, even after a lost release", ok && !clawd.controller.isHeld);
+      check("repeated drags all land exactly, even after a lost release", ok && !clawd.controller.isHeld, misses.join(" ") || `work area ${JSON.stringify(area)}`);
       port.cursorPoint = realCursor;
     }
 
