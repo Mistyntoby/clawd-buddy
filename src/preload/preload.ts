@@ -77,6 +77,14 @@ const api: ClawdApi = {
     remove: (id) => ipcRenderer.invoke("reminders:remove", id),
     onChanged: (cb) => on("reminders:changed", cb),
   },
+  todos: {
+    list: () => ipcRenderer.invoke("todos:list"),
+    add: (text) => ipcRenderer.invoke("todos:add", text),
+    setDone: (id, done) => ipcRenderer.invoke("todos:set-done", { id, done }),
+    remove: (id) => ipcRenderer.invoke("todos:remove", id),
+    clearDone: () => ipcRenderer.invoke("todos:clear-done"),
+    onChanged: (cb) => on("todos:changed", () => cb()),
+  },
   assets: {
     info: () => ipcRenderer.invoke("assets:info"),
     reload: () => ipcRenderer.invoke("assets:reload"),

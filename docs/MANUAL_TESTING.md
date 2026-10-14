@@ -28,17 +28,18 @@ Start from a clean profile: quit the app and rename the data folder (Windows `%A
 8. **Wandering.** He walks in short, deliberate trips (smooth start and stop, pauses between legs) and never while held. Unchecking *Wander around* stops all autonomous movement.
 9. **Chat window (optional).** Right-click → *Open chat window*. Enter sends, Shift+Enter adds a line, Esc minimizes (or stops a reply), `_` minimizes, `X` closes (Clawd stays); dragging the title bar moves the terminal. The status shows READY/OFFLINE, THINKING..., TYPING..., ERROR. Text is sharp at 100%, 125%, 150% scaling and on Retina.
 10. **Commands.** `/help`, `/joke` (setup, pause, punchline, happy reaction), `/fact` (lightbulb), `/pet`, `/trick` and `/trick hula`, `/remind 1m test`, `/reminders`, `/done 1`, `/forget 1`, `/search crabs` (opens the browser only then), `/clear`.
-11. **Reminders.** Add one for 1 minute in Settings → Reminders: when due, Clawd shows a bubble and waves (or, if hidden, a system notification). Mark it *Done*, delete another. Quit with a pending reminder, relaunch after it was due: it fires at startup.
-12. **Context menu.** Chat, Tell a joke, Fun fact, Pet, Do a trick ▸, Reminders…, Wander, Movement speed ▸, Sounds, Settings…, Hide, Quit all work.
-13. **Tray / menu bar.** Windows: left-click toggles show/hide; right-click shows the menu. macOS: clicking the menu bar icon opens the menu. Copy/paste work in the chat on macOS (⌘C/⌘V).
-14. **Idle chatter.** Off: no unprompted remarks. Quiet: rare and silent. Chatty: every 6–15 minutes with a sound.
-15. **Animation intensity and reduced motion.** Calm/Lively visibly change how often he does things. *Reduce motion* (or the OS setting) removes squash, bounce, and the terminal's typing effect.
-16. **Chat history.** Chat, quit, relaunch: the recent conversation is still there. *Keep chat history* off deletes it; `/clear` and *Clear chat history* empty it.
-17. **Read replies aloud.** On: replies are spoken with the system voice.
-18. **Claude chat** (needs Claude Code signed in, or an API key):
+11. **To-dos.** `/todo buy milk`, `/todo`, `/todo done 1` (a happy reaction), `/todo clear`; the same list in Settings → Reminders & to-dos with checkboxes. Survives a restart.
+12. **Reminders.** Add one for 1 minute in Settings → Reminders: when due, Clawd shows a bubble and waves (or, if hidden, a system notification). Mark it *Done*, delete another. Quit with a pending reminder, relaunch after it was due: it fires at startup.
+13. **Context menu.** Chat, Tell a joke, Fun fact, Pet, Do a trick ▸, Reminders…, Wander, Movement speed ▸, Sounds, Settings…, Hide, Quit all work.
+14. **Tray / menu bar.** Windows: left-click toggles show/hide; right-click shows the menu. macOS: clicking the menu bar icon opens the menu. Copy/paste work in the chat on macOS (⌘C/⌘V).
+15. **Idle chatter.** Off: no unprompted remarks. Quiet: rare and silent. Chatty: every 6–15 minutes with a sound.
+16. **Animation intensity and reduced motion.** Calm/Lively visibly change how often he does things. *Reduce motion* (or the OS setting) removes squash, bounce, and the terminal's typing effect.
+17. **Chat history.** Chat, quit, relaunch: the recent conversation is still there. *Keep chat history* off deletes it; `/clear` and *Clear chat history* empty it.
+18. **Read replies aloud.** On: replies are spoken with the system voice.
+19. **Claude chat** (needs Claude Code signed in, or an API key):
     - *Test connection* reports your plan or model.
     - In chat, Clawd thinks, then types on his laptop while text streams in, then idles.
     - *STOP* mid-reply stops it; an invalid key, no network, or a usage limit give friendly messages and a confused reaction (never a happy one).
-19. **Single instance.** Launching again doesn't create a second Clawd; a hidden Clawd reappears.
-20. **Launch at startup.** Packaged app only: the toggle adds a login item (Windows startup apps / macOS Login Items).
-21. **Launchers.** Double-click `Launch-ClawdBuddy.bat` (Windows) and `Launch-ClawdBuddy.command` (macOS, after the one-time permission in docs/MACOS.md). With `node_modules` deleted, each asks before running `npm ci`.
+20. **Single instance.** Launching again doesn't create a second Clawd; a hidden Clawd reappears.
+21. **Launch at startup.** Packaged app only: the toggle adds a login item (Windows startup apps / macOS Login Items).
+22. **Launchers.** Double-click `Launch-ClawdBuddy.bat` (Windows) and `Launch-ClawdBuddy.command` (macOS, after the one-time permission in docs/MACOS.md). With `node_modules` deleted, each asks before running `npm ci`.

@@ -12,6 +12,7 @@ import type {
 } from "./types";
 import type { CompanionLayout } from "./layout";
 import type { Reminder } from "./reminders";
+import type { Todo } from "./todos";
 import type { CompanionCommand, SettingsSection } from "./validation";
 
 export type Unsubscribe = () => void;
@@ -122,6 +123,14 @@ export interface ClawdApi {
     add(spec: string): Promise<{ ok: true; message: string } | { ok: false; error: string }>;
     dismiss(id: string): Promise<boolean>;
     remove(id: string): Promise<boolean>;
+    onChanged(cb: () => void): Unsubscribe;
+  };
+  todos: {
+    list(): Promise<Todo[]>;
+    add(text: string): Promise<{ ok: true; todo: Todo } | { ok: false; error: string }>;
+    setDone(id: string, done: boolean): Promise<boolean>;
+    remove(id: string): Promise<boolean>;
+    clearDone(): Promise<number>;
     onChanged(cb: () => void): Unsubscribe;
   };
   assets: {

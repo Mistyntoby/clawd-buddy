@@ -200,6 +200,16 @@ export function registerIpc(app: ClawdApp, rendererDir: string): void {
   handle("reminders:dismiss", (p) => typeof p === "string" && app.reminders.dismiss(p));
   handle("reminders:remove", (p) => typeof p === "string" && app.reminders.remove(p));
 
+  // ---- to-dos ----------------------------------------------------------------------
+  handle("todos:list", () => app.todos.list());
+  handle("todos:add", (p) => app.todos.add(typeof p === "string" ? p : ""));
+  handle("todos:set-done", (p) => {
+    const v = (typeof p === "object" && p !== null ? p : {}) as { id?: unknown; done?: unknown };
+    return typeof v.id === "string" && typeof v.done === "boolean" && app.todos.setDone(v.id, v.done);
+  });
+  handle("todos:remove", (p) => typeof p === "string" && app.todos.remove(p));
+  handle("todos:clear-done", () => app.todos.clearDone());
+
   handle("assets:info", () => ({ pack: app.assets.info(), packs: app.assets.listPacks() }));
   handle("assets:reload", () => app.reloadAssets());
   handle("assets:open-folder", () => app.openSpriteFolder());

@@ -6,8 +6,9 @@ import { sanitizeSavedChat } from "../src/main/chat-service";
 import { CompanionController, type CompanionPort } from "../src/main/companion-controller";
 import { OfflineBrain } from "../src/main/offline-brain";
 import { ReminderStore } from "../src/main/reminders";
+import { TodoStore } from "../src/main/todos";
 import { MOTION } from "../src/shared/constants";
-import { describeDue, parseReminder } from "../src/shared/reminders";
+import { dayLabel, describeDue, parseReminder } from "../src/shared/reminders";
 import { sanitizeSettings, validateSettingsPatch } from "../src/shared/settings-schema";
 
 const NOW = new Date(2026, 9, 14, 10, 0, 0).getTime(); // 10:00 local time
@@ -164,5 +165,41 @@ describe("jokes and petting", () => {
     expect(sounds.filter((s) => s === "pop")).toHaveLength(2);
     c.dispose();
     vi.useRealTimers();
+  });
+});
+
+describe("to-dos", () => {
+  it("adds, ticks off, reorders, deletes, clears finished, and survives a restart", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "clawd-todo-"));
+    try {
+      let changes = 0;
+      const store = new TodoStore(dir, () => NOW);
+      store.watch(() => changes++);
+      const a = store.add("buy milk");
+      const b = store.add("  water\u0007 plants  ");
+      expect(a.ok && b.ok).toBe(true);
+      expect(store.add("   ").ok).toBe(false);
+      if (!a.ok || !b.ok) return;
+      expect(b.todo.text).toBe("water  plants");
+      store.setDone(a.todo.id, true);
+      expect(store.list().map((t) => t.text)).toEqual(["water  plants", "buy milk"]); // open first
+      const again = new TodoStore(dir, () => NOW);
+      expect(again.list().find((t) => t.text === "buy milk")?.done).toBe(true);
+      expect(again.clearDone()).toBe(1);
+      expect(again.remove(b.todo.id)).toBe(true);
+      expect(again.list()).toEqual([]);
+      expect(changes).toBe(3);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("reminder agenda", () => {
+  it("groups by day", () => {
+    expect(dayLabel(NOW + 3600_000, NOW)).toBe("Today");
+    expect(dayLabel(new Date(2026, 9, 15, 9, 0).getTime(), NOW)).toBe("Tomorrow");
+    expect(dayLabel(NOW - 86_400_000 * 2, NOW)).toBe("Earlier");
+    expect(dayLabel(new Date(2026, 9, 20, 9, 0).getTime(), NOW)).toMatch(/20/);
   });
 });

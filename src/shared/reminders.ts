@@ -100,6 +100,18 @@ export function parseReminder(input: string, now: number): ParsedReminder {
   return { ok: true, dueAt, text };
 }
 
+/** Agenda heading for the day a reminder falls on: "Today", "Tomorrow", or a weekday and date. */
+export function dayLabel(dueAt: number, now: number): string {
+  const d = new Date(dueAt);
+  const today = new Date(now);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+  if (dueAt < now) return "Earlier";
+  return d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+}
+
 /** "in 5 min", "in 2 h 10 min", "at 15:30 tomorrow"-style label for when a reminder is due. */
 export function describeDue(dueAt: number, now: number): string {
   const diff = dueAt - now;

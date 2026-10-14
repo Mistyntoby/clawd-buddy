@@ -16,6 +16,7 @@ import { findClaudeCli } from "./claude-code-client";
 import { CompanionController } from "./companion-controller";
 import { OfflineBrain } from "./offline-brain";
 import { ReminderStore } from "./reminders";
+import { TodoStore } from "./todos";
 import { describeDue, parseReminder, type Reminder } from "../shared/reminders";
 import { readJson, writeJsonAtomic } from "./settings";
 import { platformAdapter, type PlatformAdapter } from "./platform";
@@ -54,6 +55,7 @@ export class ClawdApp {
   readonly offline = new OfflineBrain();
   readonly platform: PlatformAdapter = platformAdapter();
   readonly reminders: ReminderStore;
+  readonly todos: TodoStore;
   private jokeTimer: ReturnType<typeof setTimeout> | null = null;
   readonly chat: ChatService;
   controller!: CompanionController;
@@ -68,6 +70,7 @@ export class ClawdApp {
     this.settings = new SettingsStore(paths.userData);
     this.memory = new MemoryStore(paths.userData);
     this.reminders = new ReminderStore(paths.userData);
+    this.todos = new TodoStore(paths.userData);
     this.secrets = new SecretStore(paths.userData, safeStorage);
     this.assets = new AssetProvider({
       userDir: path.join(paths.userData, "sprites"),
@@ -138,6 +141,11 @@ export class ClawdApp {
         this.windows.sendChat("reminders:changed", null);
       },
     );
+
+    this.todos.watch(() => {
+      this.windows.sendSettings("todos:changed", null);
+      this.windows.sendChat("todos:changed", null);
+    });
 
     this.applyLoginItem(s.launchAtStartup);
     if (s.openChatOnStartup) this.openChat();
@@ -259,6 +267,9 @@ export class ClawdApp {
             "/reminders    list them",
             "/done N       finish one",
             "/forget N     delete one",
+            "/todo buy milk  add a to-do",
+            "/todo         list to-dos",
+            "/todo done N  tick one off",
             "/search words web search",
             "/clear        clear chat",
             "Anything else goes to Claude.",
@@ -290,6 +301,43 @@ export class ClawdApp {
         if (cmd === "/done") this.reminders.dismiss(r.id);
         else this.reminders.remove(r.id);
         return say(`${cmd === "/done" ? "Done" : "Deleted"}: ${r.text}`);
+      }
+      case "/todo":
+      case "/todos": {
+        const [sub, ...restArgs] = args;
+        const rest = restArgs.join(" ");
+        const list = () => this.todos.list();
+        if (!arg) {
+          const items = list();
+          if (items.length === 0) return say("No to-dos. Add one: /todo buy milk");
+          return say(items.map((t, i) => `${i + 1}. [${t.done ? "x" : " "}] ${t.text}`).join("\n"));
+        }
+        const pick = () => list()[Number(rest) - 1];
+        switch ((sub ?? "").toLowerCase()) {
+          case "done":
+          case "undo": {
+            const t = pick();
+            if (!t) return say("Which one? Use the number from /todo.");
+            this.todos.setDone(t.id, sub?.toLowerCase() === "done");
+            if (sub?.toLowerCase() === "done") this.controller.celebrate();
+            return say(`${sub?.toLowerCase() === "done" ? "Done" : "Reopened"}: ${t.text}`);
+          }
+          case "forget":
+          case "delete": {
+            const t = pick();
+            if (!t) return say("Which one? Use the number from /todo.");
+            this.todos.remove(t.id);
+            return say(`Deleted: ${t.text}`);
+          }
+          case "clear": {
+            const n = this.todos.clearDone();
+            return say(n ? `Cleared ${n} finished to-do${n === 1 ? "" : "s"}.` : "Nothing finished to clear.");
+          }
+          default: {
+            const r = this.todos.add(sub?.toLowerCase() === "add" ? rest : arg);
+            return say(r.ok ? `Added to-do: ${r.todo.text}` : r.error);
+          }
+        }
       }
       case "/trick": {
         const tricks = this.tricks();
@@ -530,7 +578,7 @@ export class ClawdApp {
             } satisfies MenuItemConstructorOptions,
           ]
         : []),
-      { label: "Reminders…", click: () => this.runCommand("reminders") },
+      { label: "Reminders & to-dos…", click: () => this.runCommand("reminders") },
       { type: "separator" },
       { label: "Wander around", type: "checkbox", checked: s.wandering, click: (i) => this.settings.update({ wandering: i.checked }) },
       {

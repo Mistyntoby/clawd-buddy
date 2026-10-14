@@ -115,6 +115,7 @@ Platform differences are confined to `src/main/platform.ts` (window level and ty
 ## Testing
 
 - **Unit tests** (`tests/`) cover the state machine and priorities, drag/drop (repeated drags, lost releases, rapid movement, multi-monitor and negative coordinates, display changes mid-drag, landing never moving the window), walking easing, layout crispness, squash spring, reminders, chat persistence, the Claude Code client, settings validation, and the sprite manifest.
+- **Live chat check** (opt-in, never in CI): `CLAWD_SMOKE_LIVE=1 npm run smoke` on macOS, or in PowerShell `$env:CLAWD_SMOKE_LIVE="1"; npm run smoke; Remove-Item Env:CLAWD_SMOKE_LIVE`. Adds one real chat through your local Claude Code subscription (a few tokens of your plan) and checks the reply comes from Claude and Clawd thinks, then talks.
 - **Smoke test** (`npm run smoke`) drives the real app: windows, transparency and hit-testing, drag and drop through the real window, the chat terminal and its commands, offline labeling, security boundaries, broken sprite packs. It runs on Windows and macOS in CI.
 - **Manual checks** that need a person and a real mouse are listed in [MANUAL_TESTING.md](MANUAL_TESTING.md).
 

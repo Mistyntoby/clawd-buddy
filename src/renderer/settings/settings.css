@@ -303,3 +303,23 @@ kbd {
   opacity: 0;
   pointer-events: none;
 }
+
+/* Reminders agenda and to-dos */
+.agenda-day {
+  padding: 10px 14px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #9a8f84);
+}
+.todo-label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.todo.done .todo-label span {
+  text-decoration: line-through;
+  opacity: 0.6;
+}

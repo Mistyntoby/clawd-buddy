@@ -272,6 +272,15 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
       check("/remind adds a reminder", reminded);
       const r = clawd.reminders.list().find((x) => x.text === "stretch");
       if (r) clawd.reminders.remove(r.id);
+      await typeCommand("/todo water the plants");
+      const todoAdded = await waitFor(() => clawd.todos.list().some((t) => t.text === "water the plants"), 3_000);
+      check("/todo adds a to-do", todoAdded);
+      if (clawd.windows.settings && !clawd.windows.settings.isDestroyed()) {
+        clawd.windows.sendSettings("settings:navigate", "reminders");
+        await wait(500);
+        await capture(clawd.windows.settings, path.join(dir, "settings-reminders.png"));
+      }
+      for (const t of clawd.todos.list()) clawd.todos.remove(t.id);
       await typeCommand("/joke");
       check("/joke tells a joke and Clawd reacts", await waitFor(async () => /🥁/.test(String(await js(chat, "document.querySelector('#screen').textContent"))), 3_000));
       await wait(600); // let the reveal finish
@@ -293,6 +302,56 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
         fs.rmSync(path.join(clawd.assets.userDir, "clawd"), { recursive: true, force: true });
       } else {
         check("Clawd import fails gracefully when the Claude app isn't installed", /wasn't found|format/i.test(r.error), r.error);
+      }
+    }
+
+    // Opt-in live check (never in CI): one tiny real chat through the local Claude Code subscription.
+    // Run with CLAWD_SMOKE_LIVE=1 npm run smoke. Uses a few tokens of the signed-in Claude plan.
+    if (process.env.CLAWD_SMOKE_LIVE === "1") {
+      clawd.settings.update({ aiProvider: "claude-code", aiEnabled: true });
+      const conn = clawd.aiConnection();
+      if (!conn) {
+        check("live: Claude Code found for the subscription chat", false, "claude CLI not found");
+      } else {
+        const states: string[] = [];
+        const off = clawd.controller.machine.onChange((next) => states.push(next));
+        let reply = "";
+        let source = "";
+        let failed = "";
+        // Watch chat events on their way to the chat window.
+        const orig = clawd.windows.sendChat.bind(clawd.windows);
+        const done = new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, 90_000);
+          clawd.windows.sendChat = (channel: string, payload: unknown) => {
+            orig(channel, payload);
+            const ev = payload as { type?: string; text?: string; message?: string };
+            if (channel !== "chat:event") return;
+            if (ev.type === "done") {
+              reply = ev.text ?? "";
+              clearTimeout(timer);
+              resolve();
+            }
+            if (ev.type === "error") {
+              failed = ev.message ?? "error";
+              clearTimeout(timer);
+              resolve();
+            }
+          };
+        });
+        const before = clawd.chat.transcript().length;
+        clawd.sendInline("Reply with exactly the single word: pong");
+        await done;
+        clawd.windows.sendChat = orig;
+        off();
+        const last = clawd.chat.transcript().slice(before).find((t) => t.role === "assistant");
+        source = last?.source ?? "";
+        check(
+          "live: subscription chat answers through Claude Code inside the app",
+          !failed && /pong/i.test(reply) && source === "claude",
+          failed || `${JSON.stringify(reply.slice(0, 60))} (${source})`,
+        );
+        check("live: Clawd thinks, then talks while the reply streams", states.includes("think") && states.includes("talk"), states.join(" → ").slice(0, 120));
+        clawd.settings.update({ aiEnabled: false });
       }
     }
 

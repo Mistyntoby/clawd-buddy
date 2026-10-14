@@ -1,5 +1,5 @@
 import type { PackSummary, SettingsInit } from "../../shared/api";
-import { describeDue, REMINDER_HELP } from "../../shared/reminders";
+import { dayLabel, describeDue, REMINDER_HELP } from "../../shared/reminders";
 import { SUGGESTED_MODELS } from "../../shared/constants";
 import { MAX_SCALE, MIN_SCALE } from "../../shared/settings-schema";
 import { ANIMATION_NAMES, type MemoryItem, type Settings, type SpritePackInfo } from "../../shared/types";
@@ -15,7 +15,7 @@ const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "welcome", label: "Welcome" },
   { id: "behavior", label: "Behavior" },
   { id: "ai", label: "AI (Claude)" },
-  { id: "reminders", label: "Reminders" },
+  { id: "reminders", label: "Reminders & to-dos" },
   { id: "memory", label: "Memory" },
   { id: "character", label: "Character & sprites" },
   { id: "about", label: "About" },
@@ -703,10 +703,18 @@ function reminders(): HTMLElement {
   async function refresh(): Promise<void> {
     const items = await clawd.reminders.list();
     const now = Date.now();
+    // Agenda: one heading per day.
+    let lastDay = "";
+    const withHeadings = (r: (typeof items)[number], el: HTMLElement): HTMLElement[] => {
+      const day = r.status === "fired" ? "Due now" : dayLabel(r.dueAt, now);
+      const out = day !== lastDay ? [h("div", { class: "agenda-day" }, day), el] : [el];
+      lastDay = day;
+      return out;
+    };
     list.replaceChildren(
       ...(items.length === 0
         ? [h("div", { class: "memory-empty" }, "No reminders yet.")]
-        : items.map((r) =>
+        : items.flatMap((r) => withHeadings(r,
             h(
               "div",
               { class: "row" },
@@ -723,7 +731,7 @@ function reminders(): HTMLElement {
                 h("button", { class: "danger", onclick: async () => (await clawd.reminders.remove(r.id), void refresh()) }, "Delete"),
               ),
             ),
-          )),
+          ))),
     );
   }
 
@@ -743,13 +751,66 @@ function reminders(): HTMLElement {
   return h(
     "section",
     { "data-section": "reminders" },
-    h("h1", {}, "Reminders"),
+    h("h1", {}, "Reminders & to-dos"),
     h("p", { class: "lead" }, "Clawd pops up with a speech bubble when a reminder is due. Reminders are stored only on this computer."),
     h("div", { class: "add-memory" }, input, h("button", { class: "primary", onclick: () => void add() }, "Add")),
     status,
     h("p", { class: "muted small" }, REMINDER_HELP, " In the chat you can also type ", h("kbd", {}, "/remind 10m stretch"), "."),
     h("h2", {}, "Upcoming"),
     list,
+    todoPanel(),
+  );
+}
+
+function todoPanel(): HTMLElement {
+  const list = h("div", { class: "group" });
+  const input = h("input", { type: "text", maxlength: 200, placeholder: "e.g. water the plants", "aria-label": "New to-do" }) as HTMLInputElement;
+
+  async function refresh(): Promise<void> {
+    const items = await clawd.todos.list();
+    list.replaceChildren(
+      ...(items.length === 0
+        ? [h("div", { class: "memory-empty" }, "Nothing to do. Nice!")]
+        : items.map((t) => {
+            const box = h("input", { type: "checkbox", "aria-label": `Done: ${t.text}` }) as HTMLInputElement;
+            box.checked = t.done;
+            box.addEventListener("change", async () => {
+              await clawd.todos.setDone(t.id, box.checked);
+              void refresh();
+            });
+            return h(
+              "div",
+              { class: `row todo${t.done ? " done" : ""}` },
+              h("label", { class: "label todo-label" }, box, h("span", {}, t.text)),
+              h("div", { class: "control" }, h("button", { class: "danger", onclick: async () => (await clawd.todos.remove(t.id), void refresh()) }, "Delete")),
+            );
+          })),
+    );
+  }
+  async function add(): Promise<void> {
+    const r = await clawd.todos.add(input.value);
+    if (!r.ok) toast(r.error, true);
+    else input.value = "";
+    void refresh();
+  }
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") void add();
+  });
+  void refresh();
+  clawd.todos.onChanged(() => void refresh());
+
+  return h(
+    "div",
+    {},
+    h("h2", {}, "To-dos"),
+    h("div", { class: "add-memory" }, input, h("button", { class: "primary", onclick: () => void add() }, "Add")),
+    list,
+    h(
+      "div",
+      { class: "buttons" },
+      h("button", { onclick: async () => (await clawd.todos.clearDone(), void refresh()) }, "Clear finished"),
+    ),
+    h("p", { class: "muted small" }, "In the chat: ", h("kbd", {}, "/todo buy milk"), ", ", h("kbd", {}, "/todo"), ", ", h("kbd", {}, "/todo done 1"), "."),
   );
 }
 

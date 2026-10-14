@@ -1,5 +1,14 @@
 # Progress log
 
+## 2026-10-14: Live subscription chat verified in the app; to-dos and agenda
+
+- **Verified live inside the running Electron app:** a real message through the local Claude Code subscription (Claude Pro) came back from Claude, labeled as Claude, and Clawd went from thinking to talking. This is an opt-in smoke check (`CLAWD_SMOKE_LIVE=1`), never run in CI.
+- To-do list: `/todo`, `/todo <text>`, `/todo done|undo|forget N`, `/todo clear`, and a list with checkboxes in Settings → Reminders & to-dos (stored locally in `todos.json`). Ticking one off makes Clawd celebrate.
+- Reminders are shown as an agenda grouped by day (Due now, Today, Tomorrow, weekdays).
+- Not done (optional extras): dropping files onto Clawd. His window is click-through except over his pixels, so the OS doesn't deliver file drags to it; supporting it would mean a separate drop target window. Left out rather than half-working.
+- CI for the inline-chat commit: green on Windows, macOS, and Linux; 41/41 smoke checks on both Windows and macOS.
+- Tests: 157 unit tests; 42 smoke checks on Windows (44 with the live check).
+
 ## 2026-10-14: Inline terminal input, optional chat window, pixel-terminal bubble
 
 - Clicking Clawd now opens a small terminal-style input right under his feet, inside his own window (so it moves with him). If he stands at the bottom of the screen, it appears just above his head instead. He stays put while it's open. Esc or clicking away with an empty input closes it.
