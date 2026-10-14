@@ -2,6 +2,8 @@
 
 export const ANIMATION_NAMES = [
   "idle",
+  "idle-variation",
+  "idea",
   "walk",
   "think",
   "talk",
@@ -10,6 +12,10 @@ export const ANIMATION_NAMES = [
   "sleep",
   "wake",
   "action",
+  "wave",
+  "pickup",
+  "drag",
+  "land",
 ] as const;
 
 export type AnimationName = (typeof ANIMATION_NAMES)[number];
@@ -19,6 +25,12 @@ export type Facing = "left" | "right";
 export type MovementSpeed = "slow" | "normal" | "fast";
 
 export type Personality = "playful" | "calm" | "concise";
+
+/** How often Clawd makes unprompted remarks. */
+export type IdleChatter = "off" | "quiet" | "chatty";
+
+/** How lively idle behavior and squash-and-stretch are. */
+export type AnimationIntensity = "calm" | "normal" | "lively";
 
 /**
  * How Claude is reached: "api" uses the user's own Anthropic API key;
@@ -39,8 +51,14 @@ export interface Settings {
   launchAtStartup: boolean;
   /** Integer pixel scale for the sprite (2–6). */
   characterScale: number;
-  ambientComments: boolean;
-  showPlaceholderLabel: boolean;
+  idleChatter: IdleChatter;
+  animationIntensity: AnimationIntensity;
+  /** Keep the recent conversation on this computer between restarts. */
+  keepChatHistory: boolean;
+  /** Read Clawd's chat replies aloud with a system voice. */
+  readAloud: boolean;
+  /** Tones down squash-and-stretch and other purely decorative motion. The OS setting is honored too. */
+  reducedMotion: boolean;
   openChatOnStartup: boolean;
   chatAlwaysOnTop: boolean;
   aiEnabled: boolean;
@@ -58,8 +76,8 @@ export interface MemoryItem {
   createdAt: string;
 }
 
-/** A resolved, validated animation ready for the renderer. */
-export interface ResolvedAnimation {
+/** One playable frame sequence. */
+export interface ResolvedSequence {
   /** Asset URLs (custom protocol) for each frame, when the pack uses individual frames. */
   frames?: string[];
   /** Asset URL of a horizontal sprite strip, when the pack uses sheets. */
@@ -67,6 +85,16 @@ export interface ResolvedAnimation {
   frameCount: number;
   fps: number;
   loop: boolean;
+  /** Frame index looping restarts from, so an intro plays only once. Default 0. */
+  loopStart: number;
+  /** Optional display name, used for the "Do a trick" menu. */
+  label?: string;
+}
+
+/** A resolved, validated animation ready for the renderer, with optional alternative sequences. */
+export interface ResolvedAnimation extends ResolvedSequence {
+  /** Other sequences for the same state; one is picked at random each time it plays. */
+  variants: ResolvedSequence[];
 }
 
 export interface SpritePackInfo {
@@ -80,6 +108,12 @@ export interface SpritePackInfo {
   attribution: string;
   frameWidth: number;
   frameHeight: number;
+  /**
+   * The character's body in its standing pose, in frame pixels [x, y, w, h].
+   * Used to keep Clawd itself (not the transparent frame around it) on screen,
+   * to place the speech bubble, and to anchor squash-and-stretch.
+   */
+  bodyBox: [number, number, number, number];
   animations: Partial<Record<AnimationName, ResolvedAnimation>>;
   /** Animations that are missing and will use a fallback. */
   missing: AnimationName[];
@@ -89,6 +123,10 @@ export interface SpritePackInfo {
 export interface CompanionView {
   animation: AnimationName;
   facing: Facing;
+  /** Increments each time the controller (re)starts an animation, so one-shots can replay. */
+  seq: number;
+  /** Which of the animation's variants to play (0 = the main sequence). */
+  variant: number;
 }
 
 export interface SpeechPayload {
@@ -105,7 +143,8 @@ export type ChatEvent =
   | { type: "delta"; requestId: string; text: string }
   | { type: "done"; requestId: string; text: string; stopReason: string | null }
   | { type: "error"; requestId: string; message: string; kind: ChatErrorKind }
-  | { type: "cancelled"; requestId: string };
+  | { type: "cancelled"; requestId: string }
+  | ChatNotice;
 
 export type ChatErrorKind =
   | "auth"
@@ -116,6 +155,11 @@ export type ChatErrorKind =
   | "not_found"
   | "refusal"
   | "unknown";
+
+export interface ChatNotice {
+  type: "notice";
+  entry: TranscriptEntry;
+}
 
 export interface TranscriptEntry {
   role: "user" | "assistant" | "error" | "system";

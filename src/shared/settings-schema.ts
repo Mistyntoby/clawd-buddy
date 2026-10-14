@@ -1,5 +1,5 @@
 import { DEFAULT_MODEL, PLACEHOLDER_PACK_ID } from "./constants";
-import type { AiProvider, MovementSpeed, Personality, Settings } from "./types";
+import type { AiProvider, AnimationIntensity, IdleChatter, MovementSpeed, Personality, Settings } from "./types";
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   version: 1,
@@ -12,8 +12,11 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   soundEnabled: true,
   launchAtStartup: false,
   characterScale: 3,
-  ambientComments: true,
-  showPlaceholderLabel: true,
+  idleChatter: "quiet",
+  animationIntensity: "normal",
+  keepChatHistory: true,
+  readAloud: false,
+  reducedMotion: false,
   openChatOnStartup: false,
   chatAlwaysOnTop: false,
   aiEnabled: false,
@@ -27,6 +30,8 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
 const SPEEDS: readonly MovementSpeed[] = ["slow", "normal", "fast"];
 const PERSONALITIES: readonly Personality[] = ["playful", "calm", "concise"];
 const PROVIDERS: readonly AiProvider[] = ["api", "claude-code"];
+const CHATTER: readonly IdleChatter[] = ["off", "quiet", "chatty"];
+const INTENSITY: readonly AnimationIntensity[] = ["calm", "normal", "lively"];
 const MODEL_ID = /^[a-z0-9][a-z0-9.\-_]{1,80}$/;
 const PACK_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -57,8 +62,11 @@ const VALIDATORS: Record<Exclude<keyof Settings, "version">, Validator> = {
   launchAtStartup: bool,
   characterScale: (v) =>
     typeof v === "number" && Number.isInteger(v) && v >= MIN_SCALE && v <= MAX_SCALE ? ok(v) : bad,
-  ambientComments: bool,
-  showPlaceholderLabel: bool,
+  idleChatter: (v) => (CHATTER.includes(v as IdleChatter) ? ok(v) : bad),
+  animationIntensity: (v) => (INTENSITY.includes(v as AnimationIntensity) ? ok(v) : bad),
+  keepChatHistory: bool,
+  readAloud: bool,
+  reducedMotion: bool,
   openChatOnStartup: bool,
   chatAlwaysOnTop: bool,
   aiEnabled: bool,
@@ -105,6 +113,8 @@ export function validateSettingsPatch(raw: unknown): { ok: true; patch: Settings
 export function sanitizeSettings(raw: unknown): Settings {
   const result: Settings = { ...DEFAULT_SETTINGS };
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return result;
+  // Settings from older versions: "ambientComments: false" meant no remarks at all.
+  if ((raw as Record<string, unknown>).ambientComments === false && !("idleChatter" in raw)) result.idleChatter = "off";
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     const validator = (VALIDATORS as Record<string, Validator | undefined>)[key];
     if (!validator) continue;

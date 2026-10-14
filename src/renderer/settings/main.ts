@@ -1,4 +1,5 @@
 import type { PackSummary, SettingsInit } from "../../shared/api";
+import { describeDue, REMINDER_HELP } from "../../shared/reminders";
 import { SUGGESTED_MODELS } from "../../shared/constants";
 import { MAX_SCALE, MIN_SCALE } from "../../shared/settings-schema";
 import { ANIMATION_NAMES, type MemoryItem, type Settings, type SpritePackInfo } from "../../shared/types";
@@ -14,6 +15,7 @@ const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "welcome", label: "Welcome" },
   { id: "behavior", label: "Behavior" },
   { id: "ai", label: "AI (Claude)" },
+  { id: "reminders", label: "Reminders" },
   { id: "memory", label: "Memory" },
   { id: "character", label: "Character & sprites" },
   { id: "about", label: "About" },
@@ -107,19 +109,21 @@ function welcome(): HTMLElement {
       h(
         "ul",
         { class: "steps" },
-        h("li", {}, h("b", {}, "Double-click"), ` ${name} to open the chat.`),
-        h("li", {}, h("b", {}, "Right-click"), " for the menu: talk, fun facts, wandering, speed, sounds, hide, quit."),
-        h("li", {}, h("b", {}, "Drag"), ` ${name} anywhere — they'll remember the spot.`),
-        h("li", {}, h("b", {}, "Single-click"), " for a friendly poke."),
-        h(
-          "li",
-          {},
-          "Lost them? Use the ",
-          h("b", {}, "Clawd Buddy tray icon"),
-          " in the notification area (bottom-right; check the ",
-          h("kbd", {}, "^"),
-          " overflow arrow). Click it to show or hide; right-click it for more.",
-        ),
+        h("li", {}, h("b", {}, "Click"), ` ${name} to open the chat terminal. Type /help there for jokes, facts, and reminders.`),
+        h("li", {}, h("b", {}, "Drag"), ` ${name} anywhere: he stays exactly where you drop him.`),
+        h("li", {}, h("b", {}, "Rub"), " the pointer back and forth over him to pet him."),
+        h("li", {}, h("b", {}, "Right-click"), " for quick actions: chat, joke, fun fact, pet, tricks, reminders, settings, hide, quit."),
+        state.capabilities.platform === "darwin"
+          ? h("li", {}, "Lost him? Click the speech-bubble icon in the ", h("b", {}, "menu bar"), " (top right) and choose Show.")
+          : h(
+              "li",
+              {},
+              "Lost him? Use the ",
+              h("b", {}, "Clawd Buddy tray icon"),
+              " in the notification area (bottom-right; check the ",
+              h("kbd", {}, "^"),
+              " overflow arrow). Click it to show or hide; right-click it for more.",
+            ),
       ),
     ),
     h(
@@ -151,10 +155,26 @@ function characterNotice(): HTMLElement {
     h(
       "p",
       { class: "muted" },
-      "Official Clawd artwork isn't bundled because it isn't licensed for redistribution. Until you add sprites you're permitted to use, an original placeholder character is shown (labeled “placeholder art”).",
+      "Clawd's artwork belongs to Anthropic, so it isn't shipped with this app. If the Claude desktop app is installed, Clawd Buddy can use the original Clawd animations from it, on this computer only. Until then, a simple stand-in character is shown.",
     ),
-    h("div", { class: "buttons" }, h("button", { onclick: () => show("character") }, "Sprite setup")),
+    h(
+      "div",
+      { class: "buttons" },
+      h("button", { class: "primary", onclick: () => void importClawd() }, "Use Clawd from the Claude app"),
+      h("button", { onclick: () => show("character") }, "Sprite setup"),
+    ),
   );
+}
+
+async function importClawd(after?: () => void): Promise<void> {
+  toast("Importing Clawd…");
+  const r = await clawd.assets.importClawd();
+  if (!r.ok) {
+    toast(r.error, true);
+    return;
+  }
+  toast(`Clawd imported: ${r.animations} animations.`);
+  after?.();
 }
 
 function behavior(): HTMLElement {
@@ -192,7 +212,15 @@ function behavior(): HTMLElement {
           ["concise", "Concise"],
         ]),
       ),
-      row("Occasional comments", "A rare, quiet remark (every 25–50 min) when you're at the computer.", toggle("ambientComments")),
+      row(
+        "Idle chatter",
+        "Unprompted remarks while you're at the computer. Quiet: rare (every 25–50 min) and silent. Chatty: every 6–15 min, with a sound.",
+        select("idleChatter", [
+          ["off", "Off"],
+          ["quiet", "Quiet"],
+          ["chatty", "Chatty"],
+        ]),
+      ),
       row("Sounds", "Soft synthesized blips and pops.", toggle("soundEnabled")),
     ),
     h("h2", {}, "Movement & appearance"),
@@ -211,7 +239,16 @@ function behavior(): HTMLElement {
       ),
       row("Character size", "Pixel scale of the sprite.", h("span", { class: "control" }, scale, scaleLabel)),
       row("Always on top", "Stay above ordinary windows.", toggle("alwaysOnTop")),
-      row("Show “placeholder art” label", "Shown under the character while the placeholder sprites are in use.", toggle("showPlaceholderLabel")),
+      row(
+        "Animation intensity",
+        "How often Clawd does little idle animations, and how much he squashes and bounces.",
+        select("animationIntensity", [
+          ["calm", "Calm"],
+          ["normal", "Normal"],
+          ["lively", "Lively"],
+        ]),
+      ),
+      row("Reduce motion", "Turn off squash, bounce, and the chat's typing effect. Your system's reduce-motion setting is also honored.", toggle("reducedMotion")),
     ),
     h("h2", {}, "Windows & startup"),
     h(
@@ -219,6 +256,8 @@ function behavior(): HTMLElement {
       { class: "group" },
       row("Open chat on startup", null, toggle("openChatOnStartup")),
       row("Keep chat window on top", null, toggle("chatAlwaysOnTop")),
+      row("Keep chat history", "Remember the recent conversation (last 100 lines) on this computer between restarts.", toggle("keepChatHistory")),
+      row("Read replies aloud", "Speak Clawd's chat replies with your system's voice.", toggle("readAloud")),
       row(
         "Launch at startup",
         caps.launchAtStartupReason ?? "Start Clawd Buddy when you sign in. Off by default.",
@@ -518,7 +557,7 @@ function character(): HTMLElement {
             {},
             pack.name,
             pack.placeholder ? h("span", { class: "badge placeholder" }, "placeholder") : null,
-            pack.official ? h("span", { class: "badge" }, "declared official (unverified)") : null,
+            pack.official ? h("span", { class: "badge" }, pack.id === "clawd" ? "from your Claude app" : "declared official (unverified)") : null,
           ),
           h("dt", {}, "Author"),
           h("dd", {}, pack.author || "—"),
@@ -561,12 +600,23 @@ function character(): HTMLElement {
       h(
         "div",
         { class: "callout" },
-        h("p", {}, h("b", {}, "Adding Clawd sprites")),
+        h("p", {}, h("b", {}, "Use the real Clawd")),
         h(
           "p",
           { class: "muted" },
-          "Official Clawd artwork belongs to Anthropic and isn't bundled with this app. If you have artwork you're permitted to use, add it as a sprite pack:",
+          "Clawd's artwork belongs to Anthropic and isn't shipped with this app. If the Claude desktop app is installed on this computer, Clawd Buddy can read Clawd's original animations from it (read-only) and save them as a private sprite pack here. Nothing is uploaded or shared.",
         ),
+        h(
+          "div",
+          { class: "buttons" },
+          h(
+            "button",
+            { class: "primary", onclick: () => void importClawd(async () => void render(await clawd.assets.info())) },
+            "Import Clawd from the Claude app",
+          ),
+        ),
+        h("p", {}, h("b", {}, "Other artwork")),
+        h("p", { class: "muted" }, "If you have other artwork you're permitted to use, add it as a sprite pack:"),
         h(
           "ol",
           { class: "steps" },
@@ -637,7 +687,65 @@ function about(): HTMLElement {
   );
 }
 
-const BUILDERS: Record<SettingsSection, () => HTMLElement> = { welcome, behavior, ai, memory, character, about };
+function reminders(): HTMLElement {
+  const list = h("div", { class: "group" });
+  const status = h("div", { class: "status-line" });
+  const input = h("input", { type: "text", maxlength: 220, placeholder: "10m stretch   ·   at 15:30 standup", "aria-label": "New reminder" }) as HTMLInputElement;
+
+  async function refresh(): Promise<void> {
+    const items = await clawd.reminders.list();
+    const now = Date.now();
+    list.replaceChildren(
+      ...(items.length === 0
+        ? [h("div", { class: "memory-empty" }, "No reminders yet.")]
+        : items.map((r) =>
+            h(
+              "div",
+              { class: "row" },
+              h(
+                "div",
+                { class: "label" },
+                h("span", {}, r.text),
+                h("span", { class: `hint${r.status === "fired" ? " warn" : ""}` }, r.status === "fired" ? "Due now" : describeDue(r.dueAt, now)),
+              ),
+              h(
+                "div",
+                { class: "control" },
+                r.status === "fired" ? h("button", { onclick: async () => (await clawd.reminders.dismiss(r.id), void refresh()) }, "Done") : null,
+                h("button", { class: "danger", onclick: async () => (await clawd.reminders.remove(r.id), void refresh()) }, "Delete"),
+              ),
+            ),
+          )),
+    );
+  }
+
+  async function add(): Promise<void> {
+    const r = await clawd.reminders.add(input.value);
+    status.className = `status-line ${r.ok ? "ok" : "err"}`;
+    status.textContent = r.ok ? r.message : r.error;
+    if (r.ok) input.value = "";
+    void refresh();
+  }
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") void add();
+  });
+  void refresh();
+  clawd.reminders.onChanged(() => void refresh());
+
+  return h(
+    "section",
+    { "data-section": "reminders" },
+    h("h1", {}, "Reminders"),
+    h("p", { class: "lead" }, "Clawd pops up with a speech bubble when a reminder is due. Reminders are stored only on this computer."),
+    h("div", { class: "add-memory" }, input, h("button", { class: "primary", onclick: () => void add() }, "Add")),
+    status,
+    h("p", { class: "muted small" }, REMINDER_HELP, " In the chat you can also type ", h("kbd", {}, "/remind 10m stretch"), "."),
+    h("h2", {}, "Upcoming"),
+    list,
+  );
+}
+
+const BUILDERS: Record<SettingsSection, () => HTMLElement> = { welcome, behavior, ai, reminders, memory, character, about };
 
 function show(section: SettingsSection): void {
   current = section;

@@ -1,7 +1,9 @@
 import type { CompanionConfig } from "../../shared/api";
-import { LABEL_AREA_HEIGHT } from "../../shared/constants";
-import type { CompanionView, SpeechPayload, SpritePackInfo } from "../../shared/types";
+import { MOTION } from "../../shared/constants";
+import type { CompanionLayout } from "../../shared/layout";
+import type { AnimationName, CompanionView, SpeechPayload, SpritePackInfo } from "../../shared/types";
 import { SpritePlayer } from "../animation/player";
+import { Squash } from "../animation/squash";
 import { $, api } from "../common/dom";
 import { playSound } from "./sound";
 
@@ -10,17 +12,22 @@ const character = $("#character");
 const bubble = $("#bubble");
 const bubbleText = $("#bubble-text");
 const bubbleSource = $("#bubble-source");
-const placeholderTag = $("#placeholder-tag");
 const fallbackShape = $("#fallback-shape");
 
 const clawd = api();
-let config: CompanionConfig = { scale: 3, showPlaceholderLabel: true, soundEnabled: true, name: "Clawd" };
+let config: CompanionConfig = { scale: 3, reducedMotion: false, animationIntensity: "normal", soundEnabled: true, name: "Clawd" };
 let pack: SpritePackInfo | null = null;
+let layout: CompanionLayout | null = null;
+let view: CompanionView | null = null;
 
 const player = new SpritePlayer(canvas, (empty) => {
   fallbackShape.hidden = !empty;
   updateDiagnostics();
 });
+const squash = new Squash({ stiffness: MOTION.squash.stiffness, damping: MOTION.squash.damping });
+
+const osReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const reducedMotion = (): boolean => config.reducedMotion || osReducedMotion.matches;
 
 function updateDiagnostics(): void {
   document.body.dataset.spriteReady = String(player.ready);
@@ -28,36 +35,111 @@ function updateDiagnostics(): void {
   document.body.dataset.pack = pack?.id ?? "";
 }
 
-function layout(): void {
-  player.setScale(config.scale);
-  const { width, height } = player.cssSize;
-  character.style.width = `${width}px`;
-  character.style.height = `${height}px`;
-  const bubbleBottom = height + LABEL_AREA_HEIGHT + 12;
-  bubble.style.bottom = `${bubbleBottom}px`;
-  // Never let the bubble extend past the top of the window (and therefore the screen):
-  // clamp the number of text lines to the space available above the character.
-  const available = window.innerHeight - bubbleBottom - 6;
+// ---- layout ----------------------------------------------------------------------------
+
+function applyLayout(next: CompanionLayout): void {
+  layout = next;
+  const c = next.character;
+  character.style.left = `${c.x}px`;
+  character.style.top = `${c.y}px`;
+  character.style.width = `${c.width}px`;
+  character.style.height = `${c.height}px`;
+  player.setLayout(next);
+  placeBubble();
+}
+
+/**
+ * Keeps the bubble inside the part of the window that is actually on screen
+ * (the transparent margins of the window may hang off a screen edge) and
+ * points its tail at Clawd.
+ */
+function placeBubble(): void {
+  if (!layout) return;
+  const W = window.innerWidth;
+  const s = window.screen as Screen & { availLeft?: number; availTop?: number };
+  const availLeft = s.availLeft ?? 0;
+  const availTop = s.availTop ?? 0;
+  const visLeft = Math.max(0, availLeft - window.screenX);
+  const visRight = Math.min(W, availLeft + s.availWidth - window.screenX);
+  const visTop = Math.max(0, availTop - window.screenY);
+  const c = layout.character;
+  bubble.style.left = `${visLeft + 8}px`;
+  bubble.style.right = `${Math.max(0, W - visRight) + 8}px`;
+  bubble.style.bottom = `${window.innerHeight - c.y + 4}px`;
+  const available = c.y - 4 - visTop - 6;
   const lineHeight = parseFloat(getComputedStyle(bubbleText).lineHeight) || 19.6;
   const chrome = 9 + 8 + 4 + 18; // padding, border, source line
   bubbleText.style.webkitLineClamp = String(Math.max(2, Math.floor((available - chrome) / lineHeight)));
-  placeholderTag.hidden = !(pack?.placeholder && config.showPlaceholderLabel);
-  character.title = pack?.placeholder ? `${config.name} (placeholder artwork)` : config.name;
+  // Point the tail at the middle of Clawd's body.
+  const r = bubble.getBoundingClientRect();
+  const bodyCenter = layout.body.x + layout.body.width / 2;
+  const tail = Math.min(Math.max(bodyCenter - r.left, 18), Math.max(18, r.width - 18));
+  bubble.style.setProperty("--tail-x", `${Math.round(tail)}px`);
 }
 
 async function applyPack(next: SpritePackInfo): Promise<void> {
   pack = next;
-  layout();
   await player.setPack(next);
-  layout();
+  if (layout) player.setLayout(layout);
   updateDiagnostics();
 }
 
-function applyView(view: CompanionView): void {
-  player.setFacing(view.facing);
-  player.play(view.animation);
-  document.body.dataset.state = view.animation;
+// ---- animation & squash ------------------------------------------------------------------
+
+/** Squash-and-stretch cues for state changes. Sprite frames do the main work; this adds weight. */
+function motionFor(prev: AnimationName | null, next: AnimationName): void {
+  if (reducedMotion()) {
+    squash.reset();
+    return;
+  }
+  const hasFrames = (name: AnimationName) => !!pack?.animations[name];
+  const k = MOTION.squash;
+  // When the pack has its own frames for a move, add only a light touch on top of them.
+  const soften = (s: { scaleX: number; scaleY: number }, name: AnimationName) =>
+    hasFrames(name) ? { scaleX: 1 + (s.scaleX - 1) * 0.5, scaleY: 1 + (s.scaleY - 1) * 0.5 } : s;
+  switch (next) {
+    case "pickup":
+      squash.kick(soften(k.pickup, "pickup"));
+      squash.setRest(hasFrames("drag") ? { scaleX: 1, scaleY: 1 } : k.carry);
+      break;
+    case "drag":
+      squash.setRest(hasFrames("drag") ? { scaleX: 1, scaleY: 1 } : k.carry);
+      break;
+    case "land":
+      squash.setRest({ scaleX: 1, scaleY: 1 });
+      squash.kick(soften(k.land, "land"));
+      break;
+    case "happy":
+      squash.setRest({ scaleX: 1, scaleY: 1 });
+      if (prev !== "happy") squash.kick(k.poke);
+      break;
+    default:
+      squash.setRest({ scaleX: 1, scaleY: 1 });
+  }
 }
+
+function applyView(next: CompanionView): void {
+  const prev = view?.animation ?? null;
+  const isNewState = !view || view.seq !== next.seq;
+  view = next;
+  player.play(next, performance.now());
+  document.body.dataset.state = next.animation;
+  document.body.dataset.playing = player.playing ?? "";
+  if (isNewState) motionFor(prev, next.animation);
+}
+
+let lastFrameTime = performance.now();
+function frame(now: number): void {
+  const dt = now - lastFrameTime;
+  lastFrameTime = now;
+  player.tick(now);
+  const s = squash.update(dt);
+  character.style.transform = s.scaleX === 1 && s.scaleY === 1 ? "" : `scale(${s.scaleX.toFixed(4)}, ${s.scaleY.toFixed(4)})`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---- speech -----------------------------------------------------------------------------
 
 function applySpeech(speech: SpeechPayload | null): void {
   if (!speech) {
@@ -69,9 +151,10 @@ function applySpeech(speech: SpeechPayload | null): void {
   bubbleSource.textContent = speech.source === "claude" ? "via Claude" : speech.source === "offline" ? "offline mode" : "";
   bubble.classList.toggle("streaming", !!speech.streaming);
   bubble.hidden = false;
+  placeBubble();
 }
 
-// ---- pointer handling: click-through except over the character/bubble ----------
+// ---- pointer handling: click-through except over Clawd's pixels and the bubble -------------
 
 let interactive = false;
 function setInteractive(on: boolean): void {
@@ -80,76 +163,129 @@ function setInteractive(on: boolean): void {
   clawd.companion.setInteractive(on);
 }
 
-function isOverInteractive(x: number, y: number): boolean {
-  const hit = (el: HTMLElement) => {
-    if (el.hidden) return false;
-    const r = el.getBoundingClientRect();
-    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-  };
-  return hit(character) || hit(bubble);
+function overCharacter(x: number, y: number): boolean {
+  if (!layout || character.hidden) return false;
+  const c = layout.character;
+  if (!fallbackShape.hidden) return x >= c.x && x <= c.x + c.width && y >= c.y && y <= c.y + c.height;
+  return player.hitTest(x - c.x, y - c.y);
 }
 
-window.addEventListener("mousemove", (e) => {
-  if (!dragging) setInteractive(isOverInteractive(e.clientX, e.clientY));
-});
-document.documentElement.addEventListener("mouseleave", () => {
-  if (!dragging) setInteractive(false);
-});
+function overBubble(x: number, y: number): boolean {
+  if (bubble.hidden) return false;
+  const r = bubble.getBoundingClientRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
 
-// ---- dragging, clicking, double-clicking ---------------------------------------------
-
-let pointerDown: { x: number; y: number; id: number } | null = null;
-let dragging = false;
-let clickTimer: ReturnType<typeof setTimeout> | null = null;
-const DRAG_THRESHOLD = 4;
-
-character.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0) return;
-  pointerDown = { x: e.screenX, y: e.screenY, id: e.pointerId };
-  character.setPointerCapture(e.pointerId);
-});
-
-character.addEventListener("pointermove", (e) => {
-  if (!pointerDown) return;
-  if (!dragging && Math.hypot(e.screenX - pointerDown.x, e.screenY - pointerDown.y) > DRAG_THRESHOLD) {
-    dragging = true;
-    character.classList.add("dragging");
-    clawd.companion.dragStart(pointerDown.x, pointerDown.y);
-  }
-  if (dragging) clawd.companion.dragMove(e.screenX, e.screenY);
-});
-
-function endPointer(e: PointerEvent): void {
-  if (!pointerDown) return;
-  if (character.hasPointerCapture(e.pointerId)) character.releasePointerCapture(e.pointerId);
-  const wasDragging = dragging;
-  pointerDown = null;
-  dragging = false;
-  character.classList.remove("dragging");
-  if (wasDragging) {
-    clawd.companion.dragEnd();
-    return;
-  }
-  // Single click = poke (delayed so a double-click can cancel it).
-  if (e.type === "pointerup") {
-    if (clickTimer) {
-      clearTimeout(clickTimer);
-      clickTimer = null;
-      clawd.companion.command("open-chat");
-    } else {
-      clickTimer = setTimeout(() => {
-        clickTimer = null;
-        clawd.companion.command("poke");
-      }, 260);
+// Rubbing the pointer back and forth over Clawd (without pressing) pets him.
+const rub = { lastX: 0, dir: 0, turns: [] as number[] };
+function trackRub(e: MouseEvent): void {
+  const dx = e.clientX - rub.lastX;
+  rub.lastX = e.clientX;
+  if (Math.abs(dx) < 3) return;
+  const dir = Math.sign(dx);
+  if (dir !== rub.dir) {
+    rub.dir = dir;
+    const now = performance.now();
+    rub.turns = rub.turns.filter((t) => now - t < 1200);
+    rub.turns.push(now);
+    if (rub.turns.length >= 5) {
+      rub.turns = [];
+      clawd.companion.command("pet"); // the main process applies a cooldown
     }
   }
 }
-character.addEventListener("pointerup", endPointer);
-character.addEventListener("pointercancel", endPointer);
+
+window.addEventListener("mousemove", (e) => {
+  if (press) return;
+  const onClawd = overCharacter(e.clientX, e.clientY);
+  setInteractive(onClawd || overBubble(e.clientX, e.clientY));
+  if (onClawd) trackRub(e);
+});
+document.documentElement.addEventListener("mouseleave", () => {
+  if (!press) setInteractive(false);
+});
+
+// ---- press, drag, release, click ---------------------------------------------------------------
+//
+// Interaction state machine (renderer side):  idle → pressed → dragging → (release) → idle
+// The renderer never computes window positions. It only reports press / drag start / pointer
+// moved / release; the main process moves the window to the OS cursor (one position authority).
+
+let press: { x: number; y: number; id: number } | null = null;
+let dragging = false;
+
+/** Ends the current press, whatever state it is in. Safe to call repeatedly. */
+function endPress(isClick: boolean): void {
+  if (!press) return;
+  const id = press.id;
+  const wasDragging = dragging;
+  press = null;
+  dragging = false;
+  character.classList.remove("dragging");
+  try {
+    if (character.hasPointerCapture(id)) character.releasePointerCapture(id);
+  } catch {
+    /* the pointer may already be gone */
+  }
+  clawd.companion.release();
+  // Dropping Clawd is never also a click.
+  if (isClick && !wasDragging) clawd.companion.command("open-chat");
+}
+
+character.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  // A fresh press always wins over a stale one (e.g. a release we never heard about).
+  if (press) endPress(false);
+  if (!overCharacter(e.clientX, e.clientY)) {
+    // A press on the transparent part of the frame: let it fall through next time.
+    setInteractive(false);
+    return;
+  }
+  press = { x: e.screenX, y: e.screenY, id: e.pointerId };
+  dragging = false;
+  try {
+    character.setPointerCapture(e.pointerId);
+  } catch {
+    /* capture is a nicety; window-level listeners below still see the release */
+  }
+  clawd.companion.grab();
+});
+
+function onPointerMove(e: PointerEvent): void {
+  if (!press || e.pointerId !== press.id) return;
+  if (e.buttons === 0) {
+    // The button came up somewhere we didn't hear about: that was the drop.
+    endPress(false);
+    return;
+  }
+  if (dragging) {
+    clawd.companion.dragMove();
+    return;
+  }
+  // Only the distance matters here; the window position always comes from the OS cursor in the main process.
+  if (Math.hypot(e.screenX - press.x, e.screenY - press.y) > MOTION.drag.thresholdPx) {
+    dragging = true;
+    character.classList.add("dragging");
+    clawd.companion.dragStart();
+  }
+}
+
+// Listen on the window (not just the character) so moves and releases are seen even if
+// pointer capture is lost while the window moves under the pointer.
+window.addEventListener("pointermove", onPointerMove);
+window.addEventListener("pointerup", (e) => {
+  if (press && e.pointerId === press.id) endPress(true);
+});
+window.addEventListener("pointercancel", () => endPress(false));
+// Losing capture is not a release: keep the drag alive; pointerup/buttons===0/blur/watchdog end it.
+window.addEventListener("blur", () => endPress(false));
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && press) endPress(false);
+});
 
 character.addEventListener("contextmenu", (e) => {
   e.preventDefault();
-  clawd.companion.contextMenu();
+  if (overCharacter(e.clientX, e.clientY)) clawd.companion.contextMenu();
 });
 bubble.addEventListener("click", () => clawd.companion.dismissSpeech());
 bubble.addEventListener("contextmenu", (e) => {
@@ -172,17 +308,23 @@ clawd.companion.onSound((s) => {
   if (config.soundEnabled) playSound(s);
 });
 clawd.companion.onPack((p) => void applyPack(p));
+clawd.companion.onLayout(applyLayout);
 clawd.companion.onConfig((c) => {
   config = c;
-  layout();
+  character.setAttribute("aria-label", c.name);
+  if (reducedMotion()) squash.reset();
 });
-window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener("change", () => layout());
-window.addEventListener("resize", () => layout());
+osReducedMotion.addEventListener("change", () => {
+  if (reducedMotion()) squash.reset();
+});
+window.addEventListener("resize", () => placeBubble());
 
 void (async () => {
   try {
     const init = await clawd.companion.ready();
     config = init.config;
+    character.setAttribute("aria-label", init.config.name);
+    applyLayout(init.layout);
     await applyPack(init.pack);
     applyView(init.view);
   } catch {

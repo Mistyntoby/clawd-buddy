@@ -2,7 +2,7 @@
 
 ## Goals
 
-A Windows-first desktop companion in the spirit of classic desktop pets. It wanders, animates, talks in speech bubbles, and can optionally chat with Claude. It must be secure (hardened Electron, no key exposure), private (no monitoring, opt-in memory), and honest (offline replies are never attributed to Claude, and placeholder art is never passed off as Clawd).
+A Windows and macOS desktop companion in the spirit of classic desktop pets. It wanders, animates, talks in speech bubbles, and can optionally chat with Claude. It must be secure (hardened Electron, no key exposure), private (no monitoring, opt-in memory), and honest (offline replies are never attributed to Claude, and no Clawd art is ever bundled: it is imported locally from the user's own Claude app).
 
 ## Key decisions
 
@@ -52,3 +52,11 @@ The companion window ignores mouse events and forwards mouse moves. The renderer
 - [x] D: Claude streaming, cancellation, error mapping, thinking/talking transitions
 - [x] E: Tests, smoke runs (dev and packaged), visual fixes, installer
 - [x] F: Privacy audit, GitHub repository, push
+
+## Later additions
+
+- [x] G: Claude subscription backend (Claude Code CLI)
+- [x] H: Clawd importer (from the user's Claude desktop app), manifest variants, loop points, body box
+- [x] I: Drag and drop rebuilt: single position authority, event-driven, watchdog; state priorities (pickup/drag/land)
+- [x] J: Terminal chat, jokes, facts, petting, tricks, reminders, chat history, idle chatter, intensity
+- [x] K: macOS platform adapter, packaging, launchers, CI on Windows and macOS, DEVELOPMENT.md, MACOS.md

@@ -25,7 +25,8 @@ await build({
   outfile: join(dist, "main/main.js"),
   platform: "node",
   format: "cjs",
-  external: ["electron"],
+  // "original-fs" is Electron's built-in unpatched fs (used to read another app's .asar).
+  external: ["electron", "original-fs"],
 });
 
 // Preload: runs in the sandbox, so it must be a single CommonJS file that only requires "electron".
@@ -55,5 +56,7 @@ for (const page of ["companion", "chat", "settings"]) {
   });
 }
 cpSync(join(root, "src/renderer/styles"), join(dist, "renderer/styles"), { recursive: true });
+// Bundled font (VT323, SIL Open Font License 1.1; license text ships alongside it).
+cpSync(join(root, "src/renderer/fonts"), join(dist, "renderer/fonts"), { recursive: true });
 
 console.info("Build complete → dist/");

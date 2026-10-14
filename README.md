@@ -1,154 +1,147 @@
 # Clawd Buddy
 
-An unofficial desktop companion inspired by classic desktop pets like BonziBuddy. It walks around your desktop, plays sprite animations, talks in speech bubbles, and can optionally chat with you using Claude.
+An unofficial desktop companion in the spirit of BonziBuddy and Clippy, starring Clawd, the pixel mascot of Claude Code. He walks around your desktop, reacts when you pick him up and drop him, tells jokes and fun facts, keeps reminders, and chats with you in a tiny retro terminal, using your Claude subscription, an API key, or simple offline replies.
 
-> **Unofficial fan project.** Clawd Buddy is not made, approved, or endorsed by Anthropic. "Claude" and the Clawd character belong to Anthropic. **No Clawd artwork is included** (see [Artwork](#artwork-and-licensing)); until you add sprites you're permitted to use, an original placeholder character called "Pip" is shown and labeled "placeholder art".
+**Windows and macOS.** On a Mac, start with **[docs/MACOS.md](docs/MACOS.md)** (step by step, no prior experience needed).
+
+> **Unofficial fan project.** Clawd Buddy is not made, approved, or endorsed by Anthropic. "Claude" and Clawd belong to Anthropic. **No Clawd artwork is included in this repository.** If the Claude desktop app is installed on your computer, one click imports Clawd's original animations from it, for use on that computer only ([details](#clawds-artwork)). Until then a simple stand-in character is shown.
 
 <p align="center">
-  <img src="docs/screenshots/companion.png" alt="The companion on the desktop with a speech bubble" height="240">
-  <img src="docs/screenshots/chat.png" alt="Chat window in offline mode" height="240">
-</p>
-<p align="center">
-  <img src="docs/screenshots/settings.png" alt="Settings window, welcome page" width="560">
+  <img src="docs/screenshots/companion.png" alt="The companion on the desktop with a speech bubble (stand-in character)" height="240">
+  <img src="docs/screenshots/chat.png" alt="The CLAWD://TERMINAL chat window" height="240">
 </p>
 
-## Features
+## What he does
 
-- **Desktop character.** A transparent, frameless window that stays on top of other windows (you can turn that off). Clicks pass through to the apps underneath everywhere except on the character itself.
-- **Animations.** A deterministic state machine drives idle, walk, think, talk, happy, confused, sleep, wake, and a generic action animation. Missing animations fall back to idle and never crash the app.
-- **Wandering.** Now and then the companion strolls along the screen, turns around, and rests. It stays inside the desktop's work area, handles multiple monitors and resolution changes, and remembers where you dragged it.
-- **Classic interactions.** Double-click to chat, right-click for a menu, single-click for a poke, and drag to move.
-- **Context menu.** Talk to Clawd, Open chat, Tell me something, What can you help with?, Wander toggle, Movement speed, Sounds, Settings, Hide, and Quit.
-- **System tray.** Click to show or hide the companion; right-click for chat, settings, toggles, and quit.
-- **Chat window.** Claude replies stream in, and you can cancel a reply with *Stop*. Clawd thinks while waiting, talks while streaming, and returns to idle when done.
-- **Two ways to reach Claude.** Use your Claude Pro or Max subscription through a locally installed [Claude Code](https://docs.anthropic.com/en/docs/claude-code/setup), or your own Anthropic API key.
-- **Offline mode.** Works without either. Replies are simple and scripted, and they're always labeled "Offline mode · scripted reply, not from Claude".
-- **Opt-in memory.** Only facts you explicitly approve are saved, and you can view, edit, or delete them at any time.
-- **Settings.** Wandering, speed, always-on-top, sounds, character size, launch at startup (off by default), chat window options, AI setup, memory, sprite diagnostics, and reset.
-- **Sprite packs.** Add authorized artwork as a folder with a `manifest.json`. A diagnostics panel shows which animations loaded and which fall back.
+- **Lives on your desktop.** A transparent, frameless window that stays on top (optional). Only Clawd's visible pixels catch the mouse; everything around him clicks through to the apps underneath. No label or text under him.
+- **Click him to chat.** A compact, pixel-art terminal (`CLAWD://TERMINAL`) opens next to him. Enter sends, Shift+Enter adds a line, Esc minimizes. While Claude answers he thinks, then types on his laptop as the reply streams in.
+- **Pick him up.** Drag him anywhere: he crouches, gets lifted into his carried pose, follows the pointer at your display's full refresh rate, and stays **exactly** where you let go, with a little squash-and-bounce landing. Wandering pauses while you hold him.
+- **Personality.** Wanders in short trips with pauses, looks around, sways, does a hula, has lightbulb moments, naps (meditates) when you're away, and waves hello. Rub the pointer over him to pet him.
+- **Quick actions** (right-click): Chat, Tell a joke, Fun fact, Pet, Do a trick, Reminders, Wander, speed, Sounds, Settings, Hide, Quit.
+- **Reminders.** "10m stretch", "at 15:30 standup": he pops up with a speech bubble when one is due. Stored only on your computer.
+- **Chat commands:** `/joke`, `/fact`, `/pet`, `/trick`, `/remind`, `/reminders`, `/done`, `/forget`, `/search`, `/clear`, `/help`.
+- **Claude, three ways:** your Claude Pro/Max subscription through [Claude Code](https://docs.anthropic.com/en/docs/claude-code/setup), your own Anthropic API key, or offline mode (scripted replies, always labeled as not from Claude).
+- **Settings:** idle chatter (off / quiet / chatty), animation intensity, reduce motion, sounds, size, always on top, launch at startup, chat history (kept locally, clearable), read replies aloud, opt-in memory.
 
-## Requirements
+## Quick start
 
-- Windows 10 or 11 (primary target). The code is kept portable for a later macOS release.
-- Node.js 20+ (developed with Node 24) and npm, to build from source.
-- Optional, for Claude conversations: [Claude Code](https://docs.anthropic.com/en/docs/claude-code/setup) signed in with a Claude subscription, or an [Anthropic API key](https://console.anthropic.com/settings/keys).
+### Easiest: the launcher (development build)
 
-## Development setup
+1. Install [Node.js](https://nodejs.org/) 22 or newer (LTS is fine) and [Git](https://git-scm.com/).
+2. Get the project: on the repository's GitHub page click **Code → Copy**, then run `git clone <that URL>` (or **Download ZIP** and unzip it).
+3. Double-click the launcher in the project folder:
+   - **Windows:** `Launch-ClawdBuddy.bat`
+   - **macOS:** `Launch-ClawdBuddy.command` (one-time permission steps are in [docs/MACOS.md](docs/MACOS.md#run-the-launcher))
 
-```bash
-git clone https://github.com/<owner>/clawd-buddy.git
-cd clawd-buddy
-npm install
-npm start          # build and launch
+The launcher finds its own folder, checks Node.js, offers to install the project's dependencies (`npm ci`) if they're missing, and runs `npm start`. It installs nothing globally and needs no admin rights.
+
+### From a terminal
+
+Windows (PowerShell) or macOS (Terminal), inside the project folder:
+
+```
+npm ci
+npm start
 ```
 
-Useful scripts:
+### As a standalone app
 
-| Command | What it does |
-| --- | --- |
-| `npm start` | Build everything and launch the app |
-| `npm run check` | Type-check, lint, unit tests, and build |
-| `npm test` | Unit tests (Vitest) |
-| `npm run smoke` | Launch the real app against a throw-away profile and run 20 runtime checks (windows, sprites, IPC security, chat, movement, missing assets). Screenshots are saved to `smoke-output/`. |
-| `npm run dist` | Build a Windows installer (NSIS) into `release/` |
-| `npm run dist:dir` | Build an unpacked app folder (faster, for testing) |
-| `npm run assets:placeholder` | Regenerate the placeholder sprites and icons |
+| | Command | Output in `release/` |
+| --- | --- | --- |
+| Windows installer | `npm run dist:win` (on Windows) | `Clawd Buddy Setup <version>.exe` |
+| macOS app | `npm run dist:mac` (on a Mac) | `.dmg` and `.zip` for Apple Silicon (`arm64`) and Intel (`x64`) |
 
-## Building a Windows installer
+The packaged app contains everything it needs; the source folder can be deleted afterwards. Builds are **not signed** with a paid certificate: Windows SmartScreen may warn ("More info → Run anyway"), and macOS builds are only ad-hoc signed and not notarized (see [docs/MACOS.md](docs/MACOS.md#install-a-built-app)). Every push also builds both on GitHub Actions; download them from the run's **Artifacts**.
 
-```bash
-npm run dist
-```
+## Clawd's artwork
 
-This writes `release/Clawd Buddy Setup <version>.exe`. The installer is per-user, lets you choose the install folder, and creates Start-menu and desktop shortcuts. Builds are **unsigned**, so Windows SmartScreen may warn on first run ("More info → Run anyway"). Signing requires your own code-signing certificate.
+Clawd's art belongs to Anthropic, so this repository doesn't contain it. The Claude desktop app ships Clawd's original pixel animations (walking, jumping, thinking, typing on a laptop, waving, meditating, and more). Clawd Buddy can import them from your own installation:
+
+1. Install the [Claude desktop app](https://claude.ai/download) (Windows or macOS).
+2. In Clawd Buddy: **Settings → Character & sprites → Import Clawd from the Claude app** (also on the Welcome page).
+
+The importer reads the app's files read-only, decodes the animations, aligns every frame on Clawd's feet, and saves them as a private sprite pack in your user folder (`%APPDATA%\Clawd Buddy\sprites\clawd` on Windows, `~/Library/Application Support/Clawd Buddy/sprites/clawd` on macOS). Nothing is uploaded, and the pack never goes into Git. Re-run it after the Claude app updates. See [ARTWORK.md](ARTWORK.md) for details and the frame mapping.
+
+Other artwork you're permitted to use can be added as a sprite pack; see [assets/sprites/README.md](assets/sprites/README.md).
 
 ## Configuring Claude (optional)
 
 ### With your Claude subscription (Claude Code)
 
-1. Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code/setup) (on Windows, the native installer that provides `claude.exe`), run `claude` in a terminal once, and sign in with your Claude account.
-2. Open **Settings → AI (Claude)**, set **Connect with** to *Claude subscription (Claude Code)*, and turn on **Enable Claude**.
-3. Click **Test connection**. It runs `claude auth status`, which uses no usage, and reports your plan.
+1. Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code/setup), run `claude` in a terminal once, and sign in with your Claude account.
+2. **Settings → AI (Claude)**: set **Connect with** to *Claude subscription (Claude Code)* and turn on **Enable Claude**.
+3. Click **Test connection**. It runs `claude auth status` (uses no quota) and reports your plan.
 
-How it works: for each message the app starts `claude -p` in an empty folder, with no tools, plugins, hooks, MCP servers, `CLAUDE.md` files, or saved session history, and streams back the reply. Chats count toward your plan's usage limits. Clawd Buddy never reads, copies, or stores Claude Code's sign-in; `ANTHROPIC_API_KEY` is removed from the CLI's environment, so it uses the subscription and doesn't quietly bill an API account. The app looks for `claude.exe` on `PATH` and in `%USERPROFILE%\.local\bin`; npm's `claude.cmd` shim isn't used, because the app never runs commands through a shell.
+For each message the app runs `claude -p` in an empty folder with no tools, plugins, hooks, MCP servers, `CLAUDE.md`, or saved sessions, and streams back the reply. Chats count toward your plan's limits. Clawd Buddy never reads or stores Claude Code's sign-in, and removes `ANTHROPIC_API_KEY` from the CLI's environment so it can't silently bill an API account. It looks for `claude` on `PATH` and in the default install folders (on Windows the native `claude.exe`; npm's `.cmd` shim isn't used because the app never runs a shell).
 
 ### With an API key
 
-1. Get an API key from the [Anthropic Console](https://console.anthropic.com/settings/keys).
-2. Open **Settings → AI (Claude)** from the tray or the right-click menu.
-3. Paste the key and click **Save**. With *Remember key* on, the key is encrypted with your Windows account (DPAPI via Electron `safeStorage`). If OS encryption isn't available, the key is kept only for the current session.
-4. Click **Test connection**.
+1. Get a key from the [Anthropic Console](https://console.anthropic.com/settings/keys) (billed per use; see [pricing](https://www.anthropic.com/pricing)).
+2. **Settings → AI (Claude)** → paste it → **Save**. With *Remember key* on it's encrypted with your OS account (Windows DPAPI / macOS Keychain via Electron `safeStorage`); otherwise it's kept for the session only. You can also set an `ANTHROPIC_API_KEY` environment variable.
+3. **Test connection.**
 
-Notes:
+The default model is set in `src/shared/constants.ts` (`DEFAULT_MODEL`, currently `claude-opus-5-5`) and can be changed in Settings.
 
-- **API key usage is billed to your Anthropic account.** See [pricing](https://www.anthropic.com/pricing).
-- The default model is set in one place, `src/shared/constants.ts` (`DEFAULT_MODEL`, currently `claude-opus-5-5`), and can be changed in Settings.
-- Replies use low reasoning effort and short answers to suit a chatty companion. The request enables the API's server-side refusal fallback (`fallbacks: "default"`).
-- As an alternative to saving a key, the app also reads an `ANTHROPIC_API_KEY` environment variable.
+## How the motion works
 
-## Artwork and licensing
+- **One position authority.** Only the main process moves the companion window, through exactly two paths that never overlap: the drag follower and the walk ticker. Grabbing Clawd stops the walk ticker before anything else.
+- **Event-driven dragging.** The renderer only reports *press*, *drag start*, *pointer moved*, and *release*. On every pointer event (Chromium delivers one per display frame) the main process reads the OS cursor (`screen.getCursorScreenPoint()`, in the same DIP coordinates as window bounds on Windows and macOS) and moves the window to `cursor − grab offset`. No timer, no queue, no frame cap. On release the window is placed once, exactly at the release point (nudged only if Clawd's body would be off every display).
+- **Never stuck.** Releases are detected on the window (not just the sprite), on `buttons === 0`, on blur and Esc, and by a watchdog that ends a hold whose release was never reported. A new press always starts fresh.
+- **Visual effects stay inside the window.** Pickup, carried pose, and landing use Clawd's own frames plus a small damped squash-and-stretch spring on the sprite; the window never moves during the landing. Reduce motion turns the spring off.
+- **Crisp pixels.** Sprites are drawn with an integer number of device pixels per art pixel for the display's scale factor (100%, 125%, 150%, Retina…).
 
-- **Source code:** [MIT](LICENSE).
-- **Placeholder character and icons:** original work made for this project, MIT.
-- **Clawd:** Anthropic's character. It is **not** included because I found no official source that licenses it for redistribution. Details are in [ARTWORK.md](ARTWORK.md).
+Measured on a 200 Hz Windows display with real mouse input: the window moved ~185 times per second during drags (about once per display frame), median pointer-to-window gap 3 px at 1200 px/s (about 2.5 ms), and every drop landed exactly. Details and limits are in [docs/PROGRESS.md](docs/PROGRESS.md).
 
-To use Clawd art (or any other character) that you are permitted to use, create a sprite pack. See [assets/sprites/README.md](assets/sprites/README.md). In short:
+## Development
 
-1. Open **Settings → Character & sprites → Open sprite folder** (`%APPDATA%\Clawd Buddy\sprites`).
-2. Create a folder such as `clawd\` containing your frames and a `manifest.json` (see [manifest.example.json](assets/sprites/manifest.example.json)), with honest author, source, and license fields.
-3. Click **Reload sprites**.
+See **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** for setup on Windows and macOS, moving between computers, and the release process.
 
-Never commit artwork you aren't allowed to redistribute. `assets/sprites/local/` and every sprite folder except `placeholder/` are git-ignored.
+| Command | What it does |
+| --- | --- |
+| `npm start` | Build and launch |
+| `npm run check` | Type-check, lint, unit tests, build |
+| `npm test` | Unit tests (Vitest) |
+| `npm run smoke` | Launch the real app on a throw-away profile and run ~40 runtime checks (windows, drag/drop, hit-testing, chat terminal, commands, reminders, security). Screenshots go to `smoke-output/`. |
+| `npm run dist` / `dist:win` / `dist:mac` | Package for the current OS / Windows / macOS |
+| `npm run assets:placeholder` | Regenerate the stand-in sprites and icons |
 
 ## Privacy and security
 
-- **Local only.** Settings, memory, and the encrypted API key are stored in `%APPDATA%\Clawd Buddy\`. There's no telemetry or analytics.
-- **What leaves your computer.** Only when Claude is enabled and set up: your chat messages, recent conversation context, and memory items you approved go **to Anthropic**, either directly to the API or through your local Claude Code, and nowhere else.
-- **What is never collected.** Files, keystrokes, clipboard, browser history, screenshots, or activity in other apps. The only OS signal used is the system idle time, so the companion can nap while you're away. It doesn't monitor other applications.
-- **No computer control.** The companion never executes commands or takes actions based on conversation text.
-- **Electron hardening.** Context isolation, sandboxed renderers, no Node integration, and a strict Content-Security-Policy. A narrow typed preload API is the only bridge to the main process. Every IPC message is checked against a per-window allow-list (`src/shared/ipc-policy.ts`) and validated before use. Navigation and new windows are blocked, and all permission requests are denied.
-- **API key handling.** The key lives only in the main process. It is never sent to a renderer, shown in DevTools, or logged.
-
-See [SECURITY.md](SECURITY.md) for how to report vulnerabilities.
+- **Local only.** Settings, memory, reminders, chat history, and the encrypted key stay in the app's data folder. No telemetry or analytics.
+- **What leaves your computer.** Only when Claude is enabled and set up: your chat messages, recent conversation, and memory items you approved go **to Anthropic** (directly, or through your local Claude Code). `/search` opens your browser only when you type it.
+- **Never collected.** Files, keystrokes, clipboard, browsing history, screenshots, window titles, or activity in other apps. The only OS signals used are the mouse position while you drag Clawd and the system idle time (so he can nap).
+- **Hardened Electron.** Context isolation, sandboxed renderers, no Node integration, strict CSP, a narrow typed preload API, a per-window IPC allow-list with validated payloads, blocked navigation, and all permission requests denied. See [SECURITY.md](SECURITY.md).
 
 ## Troubleshooting
 
 | Problem | Fix |
 | --- | --- |
-| The companion disappeared | Click the **Clawd Buddy tray icon** (check the `^` overflow area of the taskbar). Starting the app again also brings it back, because only one instance runs. |
-| It's in the way | Right-click it and choose **Hide**, turn off **Always on top**, or disable **Wander around**. |
-| It ended up off-screen after unplugging a monitor | It moves itself back automatically when displays change. Hide and show it from the tray to force a re-check. |
-| "Your API key was rejected" | Re-enter the key in Settings → AI and run **Test connection**. |
-| "Claude Code isn't signed in" | Run `claude` in a terminal, sign in, then **Test connection** again. |
-| "Claude Code wasn't found" | Install the native Claude Code build, or make sure `claude.exe` is on `PATH`, then **Test connection**. |
-| "You've hit your Claude plan's usage limit" | Wait for the limit to reset, or switch to an API key. |
-| "That model wasn't found" | Reset the model field in Settings → AI to a suggested value. |
-| Rate limited or overloaded | Wait a minute and try again. The app already retries transient errors. |
-| My sprite pack doesn't show | Settings → Character & sprites lists each pack with its errors (invalid JSON, missing `idle`, missing files). |
-| "Launch at startup" is greyed out | It only works in the installed app, not when running from source. |
-| SmartScreen warning on install | The build is unsigned. Choose *More info → Run anyway*, or build it yourself. |
-
-## Taking screenshots
-
-`npm run smoke` saves `companion.png`, `chat.png`, and `settings.png` to `smoke-output/` from a clean profile, so the screenshots contain no personal data. The images in `docs/screenshots/` were produced this way.
+| Clawd disappeared | Click the tray icon (Windows: the `^` overflow area; macOS: the speech-bubble icon in the menu bar). Starting the app again also brings him back. |
+| I can't grab him | Grab his body, not the empty space next to him (that's click-through by design). |
+| He's in the way | Right-click → Hide, turn off Always on top, or uncheck Wander around. |
+| Still the blue stand-in, not Clawd | Settings → Character & sprites → **Import Clawd from the Claude app** (needs the Claude desktop app installed). |
+| "Claude Code isn't signed in" / "wasn't found" | Run `claude` in a terminal and sign in, or install Claude Code, then **Test connection**. |
+| "You've hit your Claude plan's usage limit" | Wait for it to reset, or switch to an API key. |
+| "Your API key was rejected" | Re-enter it in Settings → AI and **Test connection**. |
+| Mac: "can't be opened" / "unidentified developer" | See [docs/MACOS.md](docs/MACOS.md#install-a-built-app). |
+| "Launch at startup" is greyed out | It only works in the packaged app, not when running from source. |
 
 ## Project layout
 
 ```
-src/
-  main/       Electron main process: windows, tray, IPC, settings, secrets, chat, behavior
-  preload/    The narrow, typed bridge (window.clawd)
-  renderer/   companion/, chat/, settings/, animation/, styles/
-  shared/     Pure, unit-tested logic: state machine, movement, manifest parsing, validation, IPC policy
-assets/       Placeholder sprites, icons, sprite-pack docs
-scripts/      Build, smoke-test, and asset-generation scripts
-tests/        Vitest unit tests
-docs/         Implementation plan, progress log, screenshots
+src/main/       Main process: windows, platform adapters, drag/walk controller, chat, reminders, IPC
+src/preload/    The narrow, typed bridge (window.clawd)
+src/renderer/   companion/ (sprite + hit-testing), chat/ (terminal), settings/, animation/, fonts/
+src/shared/     Pure, unit-tested logic: state machine, layout, movement, reminders, manifest, IPC policy
+assets/         Stand-in sprites, icons, sprite-pack docs
+scripts/        Build, smoke-test, and asset scripts
+docs/           macOS guide, development guide, progress log, manual test plan
 ```
 
 ## Credits
 
-- Inspired by classic desktop companions such as BonziBuddy, and by Anthropic's Clawd mascot.
-- Built with [Electron](https://www.electronjs.org/), TypeScript, [esbuild](https://esbuild.github.io/), [Vitest](https://vitest.dev/), and the official [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript).
+- Inspired by BonziBuddy, Clippy, and Anthropic's Clawd.
+- Terminal font: [VT323](https://fonts.google.com/specimen/VT323) by Peter Hull, SIL Open Font License 1.1 (`src/renderer/fonts/VT323-OFL.txt`).
+- Built with [Electron](https://www.electronjs.org/), TypeScript, esbuild, Vitest, and the official [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript).
 
-Clawd Buddy is an independent fan project and is not affiliated with Anthropic.
+Source code: [MIT](LICENSE). Clawd Buddy is an independent fan project and is not affiliated with Anthropic.

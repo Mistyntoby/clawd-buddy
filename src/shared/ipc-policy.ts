@@ -8,9 +8,10 @@ export type Role = "companion" | "chat" | "settings";
 export const IPC_POLICY: Readonly<Record<string, readonly Role[]>> = Object.freeze({
   "companion:ready": ["companion"],
   "companion:set-interactive": ["companion"],
+  "companion:grab": ["companion"],
   "companion:drag-start": ["companion"],
   "companion:drag-move": ["companion"],
-  "companion:drag-end": ["companion"],
+  "companion:release": ["companion"],
   "companion:context-menu": ["companion"],
   "companion:command": ["companion"],
   "companion:dismiss-speech": ["companion"],
@@ -20,6 +21,7 @@ export const IPC_POLICY: Readonly<Record<string, readonly Role[]>> = Object.free
   "chat:clear": ["chat", "settings"],
   "chat:status": ["chat"],
   "chat:transcript": ["chat"],
+  "chat:window": ["chat"],
 
   "settings:get": ["settings"],
   "settings:set": ["settings"],
@@ -35,9 +37,14 @@ export const IPC_POLICY: Readonly<Record<string, readonly Role[]>> = Object.free
   "memory:remove": ["settings"],
   "memory:clear": ["settings"],
 
+  "reminders:list": ["settings", "chat"],
+  "reminders:add": ["settings", "chat"],
+  "reminders:dismiss": ["settings", "chat"],
+  "reminders:remove": ["settings", "chat"],
   "assets:info": ["settings"],
   "assets:reload": ["settings"],
   "assets:open-folder": ["settings"],
+  "assets:import-clawd": ["settings"],
 
   "app:open-settings": ["companion", "chat", "settings"],
   "app:open-chat": ["companion", "settings"],

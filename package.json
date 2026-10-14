@@ -17,8 +17,10 @@
     "smoke": "npm run build && node scripts/smoke.mjs",
     "assets:placeholder": "node scripts/generate-placeholder.mjs",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
-    "dist": "node scripts/build.mjs && electron-builder --win --publish never",
-    "dist:dir": "node scripts/build.mjs && electron-builder --win dir --publish never"
+    "dist": "node scripts/build.mjs && electron-builder --publish never",
+    "dist:win": "node scripts/build.mjs && electron-builder --win --publish never",
+    "dist:mac": "node scripts/build.mjs && electron-builder --mac --publish never",
+    "dist:dir": "node scripts/build.mjs && electron-builder --dir --publish never"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
@@ -79,6 +81,39 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "shortcutName": "Clawd Buddy"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.entertainment",
+      "icon": "assets/icons/icon.png",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "darkModeSupport": true,
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    },
+    "dmg": {
+      "title": "Clawd Buddy ${version}"
     }
-  }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "npm@11.2.0"
 }

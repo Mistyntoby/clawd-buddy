@@ -1,8 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { ASSET_PROTOCOL, PLACEHOLDER_PACK_ID } from "../shared/constants";
-import { isSafeRelativeImagePath, parseManifest, referencedFiles, type SpriteManifest } from "../shared/sprite-manifest";
-import { ANIMATION_NAMES, type AnimationName, type ResolvedAnimation, type SpritePackInfo } from "../shared/types";
+import { isSafeRelativeImagePath, parseManifest, referencedFiles, type ManifestSequence, type SpriteManifest } from "../shared/sprite-manifest";
+import { ANIMATION_NAMES, type AnimationName, type ResolvedAnimation, type ResolvedSequence, type SpritePackInfo } from "../shared/types";
 
 /**
  * Discovers sprite packs, validates them, and serves their files.
@@ -54,11 +54,18 @@ export function loadPack(id: string, dir: string): PackCandidate {
   const missingFiles = new Set(referencedFiles(result.manifest).filter((f) => !fs.existsSync(path.join(dir, f))));
   if (missingFiles.size > 0) {
     warnings.push(`${missingFiles.size} referenced image file(s) are missing.`);
+    const usable = (seq: ManifestSequence): ManifestSequence | null => {
+      if (seq.frames) {
+        const frames = seq.frames.filter((f) => !missingFiles.has(f));
+        return frames.length > 0 ? { ...seq, frames, loopStart: seq.loopStart < frames.length ? seq.loopStart : 0 } : null;
+      }
+      return seq.sheet && !missingFiles.has(seq.sheet) ? seq : null;
+    };
     for (const [name, anim] of Object.entries(result.manifest.animations)) {
       if (!anim) continue;
-      if (anim.frames) anim.frames = anim.frames.filter((f) => !missingFiles.has(f));
-      const empty = anim.frames ? anim.frames.length === 0 : anim.sheet ? missingFiles.has(anim.sheet) : true;
-      if (empty) delete result.manifest.animations[name as AnimationName];
+      const [first, ...variants] = [anim, ...anim.variants].map(usable).filter((s): s is ManifestSequence => s !== null);
+      if (first) result.manifest.animations[name as AnimationName] = { ...first, variants };
+      else delete result.manifest.animations[name as AnimationName];
     }
     if (!result.manifest.animations.idle) {
       return { id, dir, manifest: null, errors: ['The "idle" animation has no usable image files.'], warnings };
@@ -117,6 +124,7 @@ export function toPackInfo(pack: PackCandidate | null): SpritePackInfo {
       attribution: "",
       frameWidth: 32,
       frameHeight: 32,
+      bodyBox: [0, 0, 32, 32],
       animations: {},
       missing: [...ANIMATION_NAMES],
       warnings: ["No valid sprite pack was found; using a built-in shape."],
@@ -124,11 +132,13 @@ export function toPackInfo(pack: PackCandidate | null): SpritePackInfo {
   }
   const m = pack.manifest;
   const animations: Partial<Record<AnimationName, ResolvedAnimation>> = {};
+  const resolve = (seq: ManifestSequence): ResolvedSequence =>
+    seq.frames
+      ? { frames: seq.frames.map((f) => assetUrl(pack.id, f)), frameCount: seq.frames.length, fps: seq.fps, loop: seq.loop, loopStart: seq.loopStart, ...(seq.label ? { label: seq.label } : {}) }
+      : { sheet: assetUrl(pack.id, seq.sheet as string), frameCount: seq.frameCount ?? 1, fps: seq.fps, loop: seq.loop, loopStart: seq.loopStart, ...(seq.label ? { label: seq.label } : {}) };
   for (const [name, anim] of Object.entries(m.animations)) {
     if (!anim) continue;
-    animations[name as AnimationName] = anim.frames
-      ? { frames: anim.frames.map((f) => assetUrl(pack.id, f)), frameCount: anim.frames.length, fps: anim.fps, loop: anim.loop }
-      : { sheet: assetUrl(pack.id, anim.sheet as string), frameCount: anim.frameCount ?? 1, fps: anim.fps, loop: anim.loop };
+    animations[name as AnimationName] = { ...resolve(anim), variants: anim.variants.map(resolve) };
   }
   return {
     id: pack.id,
@@ -141,6 +151,7 @@ export function toPackInfo(pack: PackCandidate | null): SpritePackInfo {
     attribution: m.attribution,
     frameWidth: m.frameWidth,
     frameHeight: m.frameHeight,
+    bodyBox: m.bodyBox,
     animations,
     missing: ANIMATION_NAMES.filter((n) => !animations[n]),
     warnings: pack.warnings,

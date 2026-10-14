@@ -19,9 +19,10 @@ const api: ClawdApi = {
   companion: {
     ready: () => ipcRenderer.invoke("companion:ready"),
     setInteractive: (v) => ipcRenderer.send("companion:set-interactive", v),
-    dragStart: (x, y) => ipcRenderer.send("companion:drag-start", { x, y }),
-    dragMove: (x, y) => ipcRenderer.send("companion:drag-move", { x, y }),
-    dragEnd: () => ipcRenderer.send("companion:drag-end"),
+    grab: () => ipcRenderer.send("companion:grab"),
+    dragStart: () => ipcRenderer.send("companion:drag-start"),
+    dragMove: () => ipcRenderer.send("companion:drag-move"),
+    release: () => ipcRenderer.send("companion:release"),
     contextMenu: () => ipcRenderer.send("companion:context-menu"),
     command: (cmd) => ipcRenderer.send("companion:command", cmd),
     dismissSpeech: () => ipcRenderer.send("companion:dismiss-speech"),
@@ -30,6 +31,7 @@ const api: ClawdApi = {
     onSound: (cb) => on("companion:sound", cb),
     onPack: (cb) => on("companion:pack", cb),
     onConfig: (cb) => on("companion:config", cb),
+    onLayout: (cb) => on("companion:layout", cb),
   },
   chat: {
     send: (text) => ipcRenderer.invoke("chat:send", text),
@@ -40,6 +42,8 @@ const api: ClawdApi = {
     onEvent: (cb) => on("chat:event", cb),
     onStatus: (cb) => on("chat:status-changed", () => cb()),
     onFocusInput: (cb) => on("chat:focus-input", () => cb()),
+    onCleared: (cb) => on("chat:cleared", () => cb()),
+    windowControl: (action) => ipcRenderer.send("chat:window", action),
   },
   settings: {
     get: () => ipcRenderer.invoke("settings:get"),
@@ -60,10 +64,18 @@ const api: ClawdApi = {
     remove: (id) => ipcRenderer.invoke("memory:remove", id),
     clear: () => ipcRenderer.invoke("memory:clear"),
   },
+  reminders: {
+    list: () => ipcRenderer.invoke("reminders:list"),
+    add: (spec) => ipcRenderer.invoke("reminders:add", spec),
+    dismiss: (id) => ipcRenderer.invoke("reminders:dismiss", id),
+    remove: (id) => ipcRenderer.invoke("reminders:remove", id),
+    onChanged: (cb) => on("reminders:changed", cb),
+  },
   assets: {
     info: () => ipcRenderer.invoke("assets:info"),
     reload: () => ipcRenderer.invoke("assets:reload"),
     openFolder: () => ipcRenderer.invoke("assets:open-folder"),
+    importClawd: () => ipcRenderer.invoke("assets:import-clawd"),
   },
   app: {
     openSettings: (section) => ipcRenderer.send("app:open-settings", section),

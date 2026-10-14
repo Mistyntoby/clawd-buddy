@@ -1,5 +1,59 @@
 # Progress log
 
+## 2026-10-14: Real Clawd, reliable drag and drop, terminal chat, features, macOS
+
+### Clawd's artwork
+
+- Researched sources: the reference article cites only the Claude Code repository; Anthropic publishes no redistributable sprite pack. Anthropic's **Claude desktop app** contains Clawd's original pixel animations (25 of them: Walking, Jumping, Thinking, Laptop, Waving, Dizzy, Meditating, …) in `clawdQuestEngine-*.js` inside `app.asar`.
+- Added an importer (**Settings → Character & sprites → Import Clawd from the Claude app**) that reads that one file read-only from the user's own installation, decodes the animations, aligns all frames on the feet anchor, and writes a private pack to the user's data folder. No Clawd art is in the repository, the packages, or the screenshots. Frame mapping in ARTWORK.md.
+- Verified on Windows with the installed Claude app (two versions: 2.31226 and 2.37337): 24 of 25 animations decode; all 15 Clawd Buddy states import with nothing skipped; the in-app path is covered by a smoke check.
+- Bug found and fixed: inside Electron, `fs` treats `.asar` files as folders, so the in-app import couldn't see the Claude app's archive. The importer now uses Electron's `original-fs`.
+- The stand-in "Pip" keeps working as the fallback (now with frames for the new states) and is never labeled; the "placeholder art" tag under the character is gone.
+
+### Drag and drop
+
+Root causes found in the previous implementation:
+
+1. Window positions were computed from renderer `screenX/screenY`, derived from the renderer's cached window origin, which lags behind the real window during a drag (and isn't in DIP at mixed scaling). On release, the whole window, including its invisible bubble area and margins, was clamped into the work area (with a 48 px auto-hide taskbar margin), so drops near any edge, the top, or the bottom jumped.
+2. After the first rewrite: a missed `pointerup` left a stale press that blocked every later press; losing pointer capture while the window moved was treated as a drop; the main process could stay "held" forever; and the window followed a 16 ms timer, capping it at about 60 updates per second.
+3. The click-through hit test read sprite pixels from a canvas tainted by cross-origin images (`clawd-asset://`), so it threw on every mouse move and Clawd couldn't be grabbed at all.
+
+Fixes: one position authority (`CompanionController`) with two movement paths that can't overlap (drag follower, walk ticker); the renderer reports only press, drag start, pointer moved, and release; the main process reads the OS cursor (`screen.getCursorScreenPoint()`, DIP) on every pointer event; the drop is applied once, exactly, and only Clawd's body is kept on a display (transparent margins may hang off the edge); release detection on the window plus `buttons === 0`, blur, Esc, and a watchdog; a new press always starts fresh; the sprite protocol allows CORS reads, and the hit test falls back to the body box if pixels are ever unreadable.
+
+Verified with real mouse input on this Windows PC (synthesized at the OS level with `SendInput`, like a physical mouse):
+
+- 6 consecutive drags across the screen: every drop landed exactly at the release point and didn't move during the 1.2 s landing.
+- Performance on a 200 Hz display (`GetDeviceCaps VREFRESH`), pointer at 1200 px/s with ~800 input events/s: the window moved ~185 times per second (about once per display frame); pointer-to-window gap median 3 px (about 2.5 ms), 95th percentile 6 px, max 8 px; the window caught up within 1.5 ms after the pointer stopped. Same results while Clawd was animating.
+- Not measured: 60/120 Hz displays, macOS, trackpads, a second monitor, or mixed DPI (only one 2560×1080 monitor here). Unit tests cover multi-monitor and negative coordinates; the manual checklist covers the rest. The visible frame rate also depends on the OS compositor; Electron doesn't guarantee one.
+
+### Animation and motion
+
+- State machine with explicit priorities: pickup/drag (100) > land (90) > think/talk > reactions > idle behaviors. While held or landing, only the drag protocol can change the state; reactions that arrive meanwhile (chat replies, errors) play after landing, and errors never show as happiness.
+- Pickup: crouch and push-off frames; carried: arms-up loop; landing: impact squash, rebound, settle, all original frames, plus a light damped squash spring on the sprite (off with *Reduce motion*). The window never moves during the landing.
+- Wandering: legs of 1–3 short walks with smooth acceleration and braking and pauses between legs; idle variations (look around, sway, turn), lightbulb, hula, waving, meditating nap.
+- Crisp pixels: integer device pixels per art pixel at every scale factor.
+
+### Chat and features
+
+- Click Clawd to open **CLAWD://TERMINAL**: a frameless retro terminal next to him (VT323 font, SIL OFL, bundled with its license), with a status line (READY / THINKING... / TYPING... / OFFLINE / ERROR), `> YOU:` / `> CLAWD:` output, a block cursor, Enter to send, Esc to minimize, and its own minimize/close buttons.
+- Jokes (setup, beat, punchline, happy reaction), fun facts (lightbulb), petting by rubbing the pointer over him (with a cooldown), tricks menu built from the pack's labeled animations, idle chatter off/quiet/chatty, animation intensity, reduce motion, read replies aloud (system voice), quick actions in the context menu.
+- Reminders: `/remind 10m stretch`, `/remind at 15:30 standup`, Settings → Reminders; stored locally with one timer; due ones fire at startup if the app was closed.
+- Chat history kept locally (last 100 lines), clearable, can be turned off.
+- Chat commands: `/help /joke /fact /pet /trick /remind /reminders /done /forget /search /clear`.
+
+### macOS and cross-platform
+
+- OS differences isolated in `src/main/platform.ts`: menu bar template icon, app menu with Edit shortcuts, Dock hidden (`LSUIElement`), floating panel window across Spaces, Keychain via `safeStorage`, Claude Code lookup in Homebrew and `~/.local/bin`, Claude app at `/Applications/Claude.app`.
+- Packaging: `npm run dist:mac` builds dmg and zip for arm64 and x64 (ad-hoc signed, not notarized); `npm run dist:win` builds the NSIS installer.
+- Launchers `Launch-ClawdBuddy.bat` and `Launch-ClawdBuddy.command`; `.nvmrc`, `engines`, complete `.gitignore`, line-ending rules; `docs/DEVELOPMENT.md` and `docs/MACOS.md`.
+- CI: check on Windows, macOS, Linux; smoke on Windows and macOS; packaging on Windows and macOS; actions updated to v7.
+- Verified here (Windows): the `.bat` launcher runs from its folder and starts the app; the `.command` launcher passes `bash -n`. **Not run on a physical Mac**; CI's macOS runners are the only macOS verification.
+
+### Tests
+
+- 155 unit tests (behavior priorities, repeated drags, rapid movement, lost releases, watchdog catch-up, multi-monitor and negative coordinates, landing never moving the window, walking easing, squash spring, layout crispness, reminders, chat history, settings migration, petting cooldown).
+- 37 smoke checks on Windows, all passing.
+
 ## 2026-10-13: Claude subscription option
 
 - Added a second way to reach Claude: **Settings → AI → Connect with → Claude subscription (Claude Code)**. Each message runs the locally installed `claude -p` with streaming JSON output, no tools, `--safe-mode`, no session persistence, and an empty working folder. Earlier turns are sent as a transcript in the prompt. `ANTHROPIC_API_KEY` is stripped from the CLI's environment so it uses the subscription.

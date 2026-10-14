@@ -20,7 +20,8 @@ if (smokeDir) {
 
 // The sprite protocol must be registered before the app is ready.
 protocol.registerSchemesAsPrivileged([
-  { scheme: ASSET_PROTOCOL, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  // corsEnabled lets the companion read sprite pixels for click-through hit testing (an untainted canvas).
+  { scheme: ASSET_PROTOCOL, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
 ]);
 
 if (!app.requestSingleInstanceLock()) {
@@ -32,9 +33,6 @@ if (!app.requestSingleInstanceLock()) {
   app.on("second-instance", () => clawd?.showCompanion());
 
   app.whenReady().then(() => {
-    // Windows uses this to group notifications/taskbar entries.
-    app.setAppUserModelId("io.github.clawdbuddy.app");
-
     const appRoot = app.getAppPath();
     const distDir = path.join(appRoot, "dist");
     const resources = app.isPackaged ? process.resourcesPath : path.join(appRoot, "assets");
@@ -50,10 +48,14 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
 
-    protocol.handle(ASSET_PROTOCOL, (request) => {
+    protocol.handle(ASSET_PROTOCOL, async (request) => {
       const file = resolveAssetRequest(request.url, instance.assets.registry);
       if (!file) return new Response("Not found", { status: 404 });
-      return net.fetch(pathToFileURL(file).href);
+      const res = await net.fetch(pathToFileURL(file).href);
+      // Sprites are plain, validated images; allowing CORS reads keeps the canvas readable for hit testing.
+      const headers = new Headers(res.headers);
+      headers.set("Access-Control-Allow-Origin", "*");
+      return new Response(res.body, { status: res.status, headers });
     });
 
     registerIpc(instance, path.join(distDir, "renderer"));
@@ -62,7 +64,10 @@ if (!app.requestSingleInstanceLock()) {
     if (smokeDir) void runSmokeTest(instance, smokeDir);
   });
 
-  // Clawd lives in the tray: closing windows does not quit the app.
+  // macOS: clicking the app again (Finder, Launchpad, Spotlight) brings Clawd back.
+  app.on("activate", () => clawd?.showCompanion());
+
+  // Clawd lives in the tray / menu bar: closing windows does not quit the app.
   app.on("window-all-closed", () => {
     /* keep running */
   });

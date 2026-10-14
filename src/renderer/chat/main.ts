@@ -3,99 +3,191 @@ import type { ChatEvent, TranscriptEntry } from "../../shared/types";
 import { extractRememberRequest } from "../../shared/validation";
 import { $, api, h } from "../common/dom";
 
+/**
+ * CLAWD://TERMINAL — the chat window as a tiny retro terminal.
+ * Lines look like "> YOU: …" and "> CLAWD: …". Replies stream in as they
+ * arrive; local lines (offline replies, command output) get a short
+ * typewriter reveal unless reduced motion is on.
+ */
+
 const clawd = api();
-const messages = $("#messages");
+const screen = $("#screen");
 const form = $("#composer") as HTMLFormElement;
 const input = $("#input") as HTMLTextAreaElement;
 const sendBtn = $("#send") as HTMLButtonElement;
-const nameEl = $("#name");
+const statusEl = $("#status");
 const modeEl = $("#mode");
 const notice = $("#notice");
 
 input.maxLength = MAX_USER_MESSAGE_CHARS;
 
+type Status = "ready" | "thinking" | "typing" | "offline" | "error";
+const STATUS_TEXT: Record<Status, string> = { ready: "READY", thinking: "THINKING...", typing: "TYPING...", offline: "OFFLINE", error: "ERROR" };
+
 let busyRequest: string | null = null;
-let liveBubble: { el: HTMLElement; text: HTMLElement; requestId: string; content: string } | null = null;
+let live: { el: HTMLElement; body: HTMLElement; cursor: HTMLElement; requestId: string; content: string; source: "claude" | "offline" } | null = null;
 let memoryEnabled = false;
 let companionName = "Clawd";
+let online = false;
+let readAloud = false;
+let reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function scrollToEnd(): void {
-  messages.scrollTop = messages.scrollHeight;
+function setStatus(s: Status): void {
+  statusEl.className = `status ${s}`;
+  statusEl.textContent = STATUS_TEXT[s];
+}
+const idleStatus = (): Status => (online ? "ready" : "offline");
+
+function nearBottom(): boolean {
+  return screen.scrollHeight - screen.scrollTop - screen.clientHeight < 40;
+}
+function scrollToEnd(force = false): void {
+  if (force || nearBottom()) screen.scrollTop = screen.scrollHeight;
 }
 
 function clearEmptyState(): void {
-  messages.querySelector(".empty")?.remove();
+  screen.querySelector(".empty")?.remove();
 }
 
 function showEmptyState(): void {
-  if (messages.children.length > 0) return;
-  messages.append(
-    h("div", { class: "empty" }, `Say hi to ${companionName}! Ask a question, or type "remember that …" to save something to memory.`),
+  if (screen.children.length > 0) return;
+  screen.append(
+    h(
+      "div",
+      { class: "line empty" },
+      `${companionName.toUpperCase()} TERMINAL v1.0\nSay hi! Ask anything, or type /help for jokes, facts, and reminders.`,
+    ),
   );
 }
 
-function sourceLabel(source: "claude" | "offline"): string {
-  return source === "claude" ? "Claude" : "Offline mode · scripted reply, not from Claude";
+function who(entry: Pick<TranscriptEntry, "role">): string {
+  switch (entry.role) {
+    case "user":
+      return "> YOU: ";
+    case "assistant":
+      return `> ${companionName.toUpperCase()}: `;
+    case "error":
+      return "! ERR: ";
+    default:
+      return "* ";
+  }
 }
 
-function addMessage(entry: TranscriptEntry): HTMLElement {
+const OFFLINE_TAG = "  [offline mode · scripted reply, not from Claude]";
+
+function lineEl(entry: TranscriptEntry): { el: HTMLElement; body: HTMLElement } {
+  const body = h("span", { class: "body" });
+  const el = h("div", { class: `line ${entry.role}` }, h("span", { class: "who" }, who(entry)), body);
+  return { el, body };
+}
+
+function addTag(el: HTMLElement, source: TranscriptEntry["source"]): void {
+  if (source === "offline") el.append(h("span", { class: "tag msg-source" }, OFFLINE_TAG));
+}
+
+/** Prints a full line. `reveal` types it out quickly (local lines only; never slows down Claude's streaming). */
+function print(entry: TranscriptEntry, reveal = false): HTMLElement {
   clearEmptyState();
-  const el = h("div", { class: `msg ${entry.role}` }, entry.text);
-  if (entry.role === "assistant" && entry.source) el.append(h("span", { class: "msg-source" }, sourceLabel(entry.source)));
-  messages.append(el);
-  scrollToEnd();
+  const { el, body } = lineEl(entry);
+  screen.append(el);
+  if (!reveal || reducedMotion || entry.text.length > 600) {
+    body.textContent = entry.text;
+    addTag(el, entry.source);
+  } else {
+    // ~0.5 s total regardless of length; click the screen to finish instantly.
+    const step = Math.max(2, Math.ceil(entry.text.length / 30));
+    let i = 0;
+    const timer = setInterval(() => {
+      i = Math.min(entry.text.length, i + step);
+      body.textContent = entry.text.slice(0, i);
+      scrollToEnd();
+      if (i >= entry.text.length) {
+        clearInterval(timer);
+        addTag(el, entry.source);
+      }
+    }, 16);
+    el.addEventListener("finish-reveal", () => {
+      i = entry.text.length;
+    });
+  }
+  scrollToEnd(true);
   return el;
+}
+
+function speak(text: string): void {
+  if (!readAloud || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text.slice(0, 1200));
+  u.rate = 1.05;
+  window.speechSynthesis.speak(u);
 }
 
 function setBusy(requestId: string | null): void {
   busyRequest = requestId;
-  sendBtn.textContent = requestId ? "Stop" : "Send";
-  sendBtn.classList.toggle("primary", !requestId);
+  sendBtn.textContent = requestId ? "STOP" : "SEND";
+  sendBtn.classList.toggle("stop", !!requestId);
   sendBtn.type = requestId ? "button" : "submit";
 }
 
 function onEvent(event: ChatEvent): void {
   switch (event.type) {
     case "start": {
-      addMessage({ role: "user", text: event.prompt });
-      const text = h("span", {}, h("span", { class: "typing", "aria-label": "Thinking" }, h("span"), h("span"), h("span")));
-      const el = h("div", { class: "msg assistant" }, text);
-      el.append(h("span", { class: "msg-source" }, sourceLabel(event.source)));
+      print({ role: "user", text: event.prompt });
+      const { el, body } = lineEl({ role: "assistant", text: "" });
+      const cursor = h("span", { class: "cursor", "aria-hidden": "true" });
+      el.append(cursor);
       clearEmptyState();
-      messages.append(el);
-      scrollToEnd();
-      liveBubble = { el, text, requestId: event.requestId, content: "" };
-      if (event.source === "claude") setBusy(event.requestId);
+      screen.append(el);
+      scrollToEnd(true);
+      live = { el, body, cursor, requestId: event.requestId, content: "", source: event.source };
+      if (event.source === "claude") {
+        setBusy(event.requestId);
+        setStatus("thinking");
+      }
       break;
     }
     case "delta":
-      if (liveBubble?.requestId === event.requestId) {
-        liveBubble.content += event.text;
-        liveBubble.text.textContent = liveBubble.content;
+      if (live?.requestId === event.requestId) {
+        if (!live.content) setStatus("typing");
+        live.content += event.text;
+        live.body.textContent = live.content;
         scrollToEnd();
       }
       break;
     case "done":
-      if (liveBubble?.requestId === event.requestId) liveBubble.text.textContent = event.text;
-      liveBubble = null;
+      if (live?.requestId === event.requestId) {
+        live.body.textContent = event.text;
+        live.cursor.remove();
+        addTag(live.el, live.source);
+      }
+      live = null;
       setBusy(null);
+      setStatus(idleStatus());
+      speak(event.text);
       scrollToEnd();
       break;
     case "error":
-      if (liveBubble?.requestId === event.requestId) liveBubble.el.remove();
-      liveBubble = null;
-      addMessage({ role: "error", text: event.message });
+      if (live?.requestId === event.requestId) live.el.remove();
+      live = null;
+      print({ role: "error", text: event.message });
       setBusy(null);
+      setStatus("error");
+      setTimeout(() => setStatus(idleStatus()), 4000);
       break;
     case "cancelled":
-      // After "Clear" there is no live bubble; stay quiet in that case.
-      if (liveBubble?.requestId === event.requestId) {
-        if (liveBubble.content) liveBubble.el.append(h("span", { class: "msg-source" }, "(stopped)"));
-        else liveBubble.el.remove();
-        addMessage({ role: "system", text: "Stopped." });
+      // After "Clear" there is no live line; stay quiet in that case.
+      if (live?.requestId === event.requestId) {
+        live.cursor.remove();
+        if (!live.content) live.el.remove();
+        print({ role: "system", text: "Stopped." });
       }
-      liveBubble = null;
+      live = null;
       setBusy(null);
+      setStatus(idleStatus());
+      break;
+    case "notice":
+      print(event.entry, event.entry.role !== "user");
+      if (event.entry.role === "assistant") speak(event.entry.text);
       break;
   }
 }
@@ -110,34 +202,32 @@ function rememberCard(fact: string): void {
       h(
         "div",
         { class: "row" },
-        h("button", { onclick: () => clawd.app.openSettings("memory") }, "Open memory settings"),
-        h("button", { class: "ghost", onclick: () => card.remove() }, "Dismiss"),
+        h("button", { onclick: () => clawd.app.openSettings("memory") }, "SETTINGS"),
+        h("button", { class: "ghost", onclick: () => card.remove() }, "OK"),
       ),
     );
   } else {
     card.append(
-      h("div", {}, "Save this to memory?"),
-      h("div", { class: "muted small" }, `“${fact}”`),
+      h("div", {}, `Save to memory? "${fact}"`),
       h(
         "div",
         { class: "row" },
         h(
           "button",
           {
-            class: "primary",
             onclick: async () => {
               const r = await clawd.memory.add(fact);
-              card.replaceWith(addMessage({ role: r.ok ? "system" : "error", text: r.ok ? "Saved to memory. You can edit it in Settings → Memory." : r.error }));
+              card.replaceWith(print({ role: r.ok ? "system" : "error", text: r.ok ? "Saved to memory (Settings → Memory)." : r.error }));
             },
           },
-          "Save",
+          "SAVE",
         ),
-        h("button", { class: "ghost", onclick: () => card.replaceWith(addMessage({ role: "system", text: "Not saved." })) }, "Don't save"),
+        h("button", { class: "ghost", onclick: () => card.replaceWith(print({ role: "system", text: "Not saved." })) }, "DON'T"),
       ),
     );
   }
-  messages.append(card);
-  scrollToEnd();
+  screen.append(card);
+  scrollToEnd(true);
 }
 
 async function submit(): Promise<void> {
@@ -148,29 +238,30 @@ async function submit(): Promise<void> {
 
   const fact = extractRememberRequest(text);
   if (fact) {
-    addMessage({ role: "user", text });
+    print({ role: "user", text });
     rememberCard(fact);
     return;
   }
 
   const result = await clawd.chat.send(text);
-  if (!result.ok) addMessage({ role: "error", text: result.error });
+  if (!result.ok) print({ role: "error", text: result.error });
 }
 
 function autoGrow(): void {
   input.style.height = "auto";
-  input.style.height = `${Math.min(input.scrollHeight, 140)}px`;
+  input.style.height = `${Math.min(input.scrollHeight, 110)}px`;
 }
 
 async function refreshStatus(): Promise<void> {
   const s = await clawd.chat.status();
   companionName = s.name;
   memoryEnabled = s.memoryEnabled;
-  nameEl.textContent = s.name;
-  document.title = `Chat with ${s.name} — Clawd Buddy`;
-  const online = s.ready;
-  modeEl.className = `mode ${online ? "claude" : "offline"}`;
-  modeEl.textContent = online ? `Claude · ${s.model}${s.provider === "claude-code" ? " · subscription" : ""}` : "Offline mode";
+  readAloud = s.readAloud;
+  reducedMotion = s.reducedMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  online = s.ready;
+  document.title = `${s.name.toUpperCase()}://TERMINAL`;
+  modeEl.textContent = online ? `CLAUDE · ${s.model}${s.provider === "claude-code" ? " · SUB" : ""}` : "SCRIPTED REPLIES";
+  if (!busyRequest) setStatus(idleStatus());
   notice.replaceChildren();
   if (!online) {
     notice.append(
@@ -179,11 +270,11 @@ async function refreshStatus(): Promise<void> {
         {},
         s.enabled
           ? s.provider === "claude-code"
-            ? "AI is enabled but Claude Code wasn't found, so replies are scripted and do not come from Claude."
-            : "AI is enabled but no API key is set, so replies are scripted and do not come from Claude."
-          : "Offline mode: replies are simple scripted responses, not from Claude.",
+            ? "Claude Code wasn't found, so replies are scripted, not from Claude."
+            : "No API key is set, so replies are scripted, not from Claude."
+          : "Offline mode: replies are scripted, not from Claude.",
       ),
-      h("button", { onclick: () => clawd.app.openSettings("ai") }, "Set up Claude"),
+      h("button", { onclick: () => clawd.app.openSettings("ai") }, "CONNECT CLAUDE"),
     );
   }
   notice.hidden = online;
@@ -204,25 +295,40 @@ input.addEventListener("keydown", (e) => {
     e.preventDefault();
     form.requestSubmit();
   }
-  if (e.key === "Escape" && busyRequest) void clawd.chat.cancel();
+  if (e.key === "Escape") {
+    if (busyRequest) void clawd.chat.cancel();
+    else if (!input.value) clawd.chat.windowControl("minimize");
+  }
 });
 input.addEventListener("input", autoGrow);
+screen.addEventListener("click", () => {
+  for (const el of screen.querySelectorAll(".line")) el.dispatchEvent(new Event("finish-reveal"));
+  if (!window.getSelection()?.toString()) input.focus();
+});
+
+function resetScreen(): void {
+  screen.replaceChildren();
+  live = null;
+  setBusy(null);
+  setStatus(idleStatus());
+  showEmptyState();
+}
 $("#clear").addEventListener("click", async () => {
   await clawd.chat.clear();
-  messages.replaceChildren();
-  liveBubble = null;
-  setBusy(null);
-  showEmptyState();
+  resetScreen();
 });
 $("#open-settings").addEventListener("click", () => clawd.app.openSettings("ai"));
+$("#win-min").addEventListener("click", () => clawd.chat.windowControl("minimize"));
+$("#win-close").addEventListener("click", () => clawd.chat.windowControl("close"));
 
 clawd.chat.onEvent(onEvent);
 clawd.chat.onStatus(() => void refreshStatus());
 clawd.chat.onFocusInput(() => input.focus());
+clawd.chat.onCleared(resetScreen);
 
 void (async () => {
   await refreshStatus();
-  for (const entry of await clawd.chat.transcript()) addMessage(entry);
+  for (const entry of await clawd.chat.transcript()) print(entry);
   showEmptyState();
   input.focus();
   document.body.dataset.ready = "true";

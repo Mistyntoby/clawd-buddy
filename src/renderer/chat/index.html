@@ -4,32 +4,35 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'"
     />
-    <title>Chat — Clawd Buddy</title>
-    <link rel="stylesheet" href="../styles/theme.css" />
+    <title>CLAWD://TERMINAL</title>
     <link rel="stylesheet" href="chat.css" />
   </head>
   <body>
-    <header id="header">
-      <div class="who">
-        <span class="avatar" aria-hidden="true"></span>
-        <div>
-          <div id="name" class="name">Clawd</div>
-          <div id="mode" class="mode"></div>
-        </div>
+    <div id="frame">
+      <header id="titlebar">
+        <span class="title"><span class="blip" aria-hidden="true"></span>CLAWD://TERMINAL</span>
+        <span class="controls">
+          <button id="win-min" class="tb" title="Minimize" aria-label="Minimize">_</button>
+          <button id="win-close" class="tb" title="Close" aria-label="Close">X</button>
+        </span>
+      </header>
+      <div id="statusbar">
+        <span id="status" class="status ready" role="status">READY</span>
+        <span id="mode" class="mode"></span>
+        <span class="spacer"></span>
+        <button id="clear" class="link" title="Clear the conversation">CLR</button>
+        <button id="open-settings" class="link" title="Settings">CFG</button>
       </div>
-      <div class="actions">
-        <button id="clear" class="ghost" title="Clear conversation">Clear</button>
-        <button id="open-settings" class="ghost" title="Settings">Settings</button>
-      </div>
-    </header>
-    <div id="notice" hidden></div>
-    <main id="messages" aria-live="polite"></main>
-    <form id="composer" autocomplete="off">
-      <textarea id="input" rows="1" placeholder="Say something…" aria-label="Message"></textarea>
-      <button id="send" class="primary" type="submit">Send</button>
-    </form>
+      <div id="notice" hidden></div>
+      <main id="screen" aria-live="polite" aria-label="Conversation" tabindex="0"></main>
+      <form id="composer" autocomplete="off">
+        <span class="prompt" aria-hidden="true">&gt;</span>
+        <textarea id="input" rows="1" spellcheck="false" placeholder="type here · /help" aria-label="Message to Clawd"></textarea>
+        <button id="send" type="submit">SEND</button>
+      </form>
+    </div>
     <script src="main.js"></script>
   </body>
 </html>

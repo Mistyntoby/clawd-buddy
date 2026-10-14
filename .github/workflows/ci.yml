@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,13 +15,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run typecheck
@@ -29,40 +30,62 @@ jobs:
       - run: npm run build
 
   smoke:
-    name: Runtime smoke test (Windows)
+    name: Runtime smoke test (${{ matrix.os }})
     needs: check
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run smoke
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: smoke-output
+          name: smoke-output-${{ matrix.os }}
           path: smoke-output/
           retention-days: 7
 
   package:
-    name: Windows installer
+    name: Package (${{ matrix.name }})
     needs: check
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows installer
+            os: windows-latest
+            script: dist:win
+            files: release/*.exe
+            artifact: clawd-buddy-windows
+          - name: macOS dmg + zip
+            os: macos-latest
+            script: dist:mac
+            files: |
+              release/*.dmg
+              release/*.zip
+            artifact: clawd-buddy-macos
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run dist
+      # Unsigned builds: no certificates are configured, and none are stored in this repository.
+      # macOS builds are ad-hoc signed (identity "-"), not signed with a Developer ID or notarized.
+      - run: npm run ${{ matrix.script }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: clawd-buddy-installer
-          path: release/*.exe
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.files }}
           retention-days: 14

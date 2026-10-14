@@ -8,6 +8,35 @@ import type { OfflineBrain } from "./offline-brain";
 import { buildSystemPrompt } from "./personality";
 
 const TRANSCRIPT_MAX = 200;
+/** How much of the conversation is kept on disk when "Keep chat history" is on. */
+export const SAVED_TRANSCRIPT_MAX = 100;
+
+/** Where the recent conversation is persisted. Implemented with a JSON file in the app's data folder. */
+export interface ChatPersistence {
+  load(): { history: Anthropic.MessageParam[]; log: TranscriptEntry[] } | null;
+  save(data: { history: Anthropic.MessageParam[]; log: TranscriptEntry[] } | null): void;
+}
+
+function isEntry(v: unknown): v is TranscriptEntry {
+  if (typeof v !== "object" || v === null) return false;
+  const e = v as Record<string, unknown>;
+  return ["user", "assistant", "error", "system"].includes(e.role as string) && typeof e.text === "string";
+}
+
+function isMessage(v: unknown): v is Anthropic.MessageParam {
+  if (typeof v !== "object" || v === null) return false;
+  const m = v as Record<string, unknown>;
+  return (m.role === "user" || m.role === "assistant") && typeof m.content === "string";
+}
+
+/** Validates persisted chat data (it is read back from disk, so treat it as untrusted). */
+export function sanitizeSavedChat(raw: unknown): { history: Anthropic.MessageParam[]; log: TranscriptEntry[] } | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  const log = Array.isArray(r.log) ? r.log.filter(isEntry).slice(-SAVED_TRANSCRIPT_MAX) : [];
+  const history = trimHistory(Array.isArray(r.history) ? r.history.filter(isMessage) : []);
+  return { history, log };
+}
 
 export interface ChatContext {
   /** How to reach Claude, or null for offline mode (AI disabled or not set up). */
@@ -50,11 +79,42 @@ export class ChatService {
   private log: TranscriptEntry[] = [];
   private active: { id: string; stream: ChatStream | null; cancelled: boolean } | null = null;
 
+  private persistence: ChatPersistence | null = null;
+
   constructor(
     private readonly factory: StreamFactory,
     private readonly offline: OfflineBrain,
     private readonly emit: (event: ChatEvent) => void,
   ) {}
+
+  /** Turns persistence on (restoring the saved conversation) or off (deleting it). */
+  setPersistence(p: ChatPersistence | null): void {
+    if (!p) {
+      this.persistence?.save(null);
+      this.persistence = null;
+      return;
+    }
+    this.persistence = p;
+    const saved = sanitizeSavedChat(p.load());
+    if (saved && this.log.length === 0) {
+      this.history = saved.history;
+      this.log = saved.log;
+    }
+  }
+
+  private persist(): void {
+    this.persistence?.save({ history: this.history, log: this.log.slice(-SAVED_TRANSCRIPT_MAX) });
+  }
+
+  /** Adds a local line (command output, reminders, jokes) to the chat without involving Claude. */
+  notice(entry: TranscriptEntry, echo?: string): void {
+    if (echo !== undefined) {
+      this.record({ role: "user", text: echo });
+      this.emit({ type: "notice", entry: { role: "user", text: echo } });
+    }
+    this.record(entry);
+    this.emit({ type: "notice", entry });
+  }
 
   get busy(): boolean {
     return this.active !== null;
@@ -71,6 +131,7 @@ export class ChatService {
   private record(entry: TranscriptEntry): void {
     this.log.push(entry);
     if (this.log.length > TRANSCRIPT_MAX) this.log = this.log.slice(-TRANSCRIPT_MAX);
+    this.persist();
   }
 
   /** Starts a reply. Returns the request id, or an error if a reply is already in progress. */
@@ -169,6 +230,7 @@ export class ChatService {
     this.cancel();
     this.history = [];
     this.log = [];
+    this.persist();
   }
 }
 

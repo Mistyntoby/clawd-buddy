@@ -42,6 +42,8 @@ export interface CliLookup {
   platform: NodeJS.Platform;
   home: string;
   isFile: (p: string) => boolean;
+  /** Extra folders to search after PATH; defaults to ~/.local/bin. */
+  extraDirs?: string[];
 }
 
 /**
@@ -57,7 +59,7 @@ export function findClaudeCli(
   const exe = win ? "claude.exe" : "claude";
   const pathVar = lookup.env.PATH ?? lookup.env.Path ?? "";
   const dirs = pathVar.split(win ? ";" : ":").filter((d) => d.trim().length > 0 && pathImpl.isAbsolute(d));
-  dirs.push(pathImpl.join(lookup.home, ".local", "bin"));
+  dirs.push(...(lookup.extraDirs ?? [pathImpl.join(lookup.home, ".local", "bin")]));
   for (const dir of dirs) {
     const candidate = pathImpl.join(dir.replace(/^"|"$/g, ""), exe);
     if (lookup.isFile(candidate)) return candidate;

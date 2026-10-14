@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BehaviorMachine, isBusy, transition } from "../src/shared/behavior";
+import { BehaviorMachine, isBusy, isHeld, STATE_PRIORITY, transition, type BehaviorEvent } from "../src/shared/behavior";
 import { ANIMATION_NAMES } from "../src/shared/types";
 
 describe("behavior state machine", () => {
@@ -42,8 +42,8 @@ describe("behavior state machine", () => {
     expect(transition("wake", "ONE_SHOT_END")).toBe("idle");
   });
 
-  it("stops walking when dragged or arrived", () => {
-    expect(transition("walk", "DRAG_START")).toBe("idle");
+  it("stops walking when picked up or arrived", () => {
+    expect(transition("walk", "DRAG_START")).toBe("pickup");
     expect(transition("walk", "ARRIVED")).toBe("idle");
   });
 
@@ -53,15 +53,79 @@ describe("behavior state machine", () => {
     }
   });
 
-  it("every state has a path back to idle", () => {
+  it("every state has a path back to idle without RESET", () => {
+    const exits: BehaviorEvent[] = ["ARRIVED", "SPEECH_END", "ONE_SHOT_END", "CANCEL", "WAKE", "PICKED_UP", "DROP", "LANDED"];
     for (const s of ANIMATION_NAMES) {
-      const exits = ["ARRIVED", "SPEECH_END", "ONE_SHOT_END", "CANCEL", "WAKE"] as const;
-      const reachable = exits.some((e) => {
-        const n = transition(s, e);
-        return n === "idle" || (n !== null && transition(n, "ONE_SHOT_END") === "idle");
-      });
-      expect(reachable || s === "idle").toBe(true);
+      const seen = new Set([s]);
+      const queue = [s];
+      while (queue.length) {
+        const cur = queue.shift()!;
+        for (const e of exits) {
+          const n = transition(cur, e);
+          if (n && !seen.has(n)) {
+            seen.add(n);
+            queue.push(n);
+          }
+        }
+      }
+      expect(seen.has("idle")).toBe(true);
     }
+  });
+
+  describe("holding Clawd (pickup → drag → land)", () => {
+    const ALL_EVENTS: BehaviorEvent[] = [
+      "WANDER_START", "ARRIVED", "IDLE_VARIATION", "CHAT_START", "FIRST_TOKEN", "SPEAK", "SPEECH_END", "ERROR", "CANCEL",
+      "REACT_HAPPY", "FIDGET", "WAVE", "ONE_SHOT_END", "SLEEP", "WAKE", "DRAG_START", "PICKED_UP", "DROP", "LANDED",
+    ];
+
+    it("can be picked up from every state that isn't already held", () => {
+      for (const s of ANIMATION_NAMES) {
+        if (isHeld(s)) expect(transition(s, "DRAG_START")).toBeNull();
+        else expect(transition(s, "DRAG_START")).toBe("pickup");
+      }
+    });
+
+    it("runs pickup → drag → land → idle", () => {
+      const m = new BehaviorMachine();
+      m.send("WANDER_START");
+      expect(m.send("DRAG_START")).toBe(true);
+      expect(m.state).toBe("pickup");
+      expect(m.send("PICKED_UP")).toBe(true);
+      expect(m.state).toBe("drag");
+      expect(m.send("DROP")).toBe(true);
+      expect(m.state).toBe("land");
+      expect(m.send("LANDED")).toBe(true);
+      expect(m.state).toBe("idle");
+    });
+
+    it("a quick toss (drop during pickup) still lands", () => {
+      expect(transition("pickup", "DROP")).toBe("land");
+    });
+
+    it("nothing but the drag protocol can change a held or landing state", () => {
+      const allowed: Record<string, BehaviorEvent[]> = { pickup: ["PICKED_UP", "DROP"], drag: ["DROP"], land: ["LANDED"] };
+      for (const s of ["pickup", "drag", "land"] as const) {
+        for (const e of ALL_EVENTS) {
+          if (allowed[s]!.includes(e)) continue;
+          expect(transition(s, e), `${s} + ${e}`).toBeNull();
+        }
+      }
+    });
+
+    it("idle, wandering, and variations can't override landing", () => {
+      for (const e of ["WANDER_START", "IDLE_VARIATION", "FIDGET", "ONE_SHOT_END", "SLEEP", "ARRIVED"] as const) {
+        expect(transition("land", e)).toBeNull();
+      }
+    });
+
+    it("dragging outranks everything, landing outranks idle behavior", () => {
+      for (const s of ANIMATION_NAMES) {
+        if (!isHeld(s)) expect(STATE_PRIORITY.drag).toBeGreaterThan(STATE_PRIORITY[s]);
+      }
+      for (const s of ["idle", "idle-variation", "walk", "sleep", "action"] as const) {
+        expect(STATE_PRIORITY.land).toBeGreaterThan(STATE_PRIORITY[s]);
+      }
+    });
   });
 
   it("notifies listeners with next, previous and event", () => {

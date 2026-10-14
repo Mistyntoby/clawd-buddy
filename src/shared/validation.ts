@@ -74,6 +74,10 @@ const COMMANDS = [
   "open-settings",
   "hide",
   "poke",
+  "pet",
+  "joke",
+  "fact",
+  "reminders",
 ] as const;
 export type CompanionCommand = (typeof COMMANDS)[number];
 
@@ -83,7 +87,7 @@ export function validateCommand(raw: unknown): Result<CompanionCommand> {
     : { ok: false, error: "Unknown command." };
 }
 
-const SECTIONS = ["welcome", "behavior", "ai", "memory", "character", "about"] as const;
+const SECTIONS = ["welcome", "behavior", "ai", "reminders", "memory", "character", "about"] as const;
 export type SettingsSection = (typeof SECTIONS)[number];
 export function validateSection(raw: unknown): Result<SettingsSection> {
   return (SECTIONS as readonly unknown[]).includes(raw)

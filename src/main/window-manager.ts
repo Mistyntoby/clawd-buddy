@@ -1,9 +1,10 @@
 import { BrowserWindow, screen, shell, type WebContents } from "electron";
 import * as path from "node:path";
-import { BUBBLE_AREA_HEIGHT, COMPANION_MIN_WIDTH, LABEL_AREA_HEIGHT } from "../shared/constants";
+import { companionLayout, type CompanionLayout } from "../shared/layout";
 import { effectiveWorkArea, type Point, type Rect, type Size } from "../shared/movement";
 import type { CompanionView, SpeechPayload, SpritePackInfo } from "../shared/types";
 import type { CompanionPort } from "./companion-controller";
+import type { PlatformAdapter } from "./platform";
 
 export type WindowRole = "companion" | "chat" | "settings";
 
@@ -22,11 +23,14 @@ export class WindowManager implements CompanionPort {
   companion: BrowserWindow | null = null;
   chat: BrowserWindow | null = null;
   settings: BrowserWindow | null = null;
-  private companionSize: Size = { width: COMPANION_MIN_WIDTH, height: 300 };
+  private layout: CompanionLayout = companionLayout({ frameWidth: 32, frameHeight: 32, bodyBox: [0, 0, 32, 32], scale: 3, scaleFactor: 1 });
   private interactive = false;
   private onCompanionClosedCb: (() => void) | null = null;
 
-  constructor(private readonly paths: WindowPaths) {}
+  constructor(
+    private readonly paths: WindowPaths,
+    private readonly platform: PlatformAdapter,
+  ) {}
 
   roleOf(contents: WebContents): WindowRole | null {
     if (this.companion && !this.companion.isDestroyed() && contents.id === this.companion.webContents.id) return "companion";
@@ -62,17 +66,24 @@ export class WindowManager implements CompanionPort {
     void win.loadFile(path.join(this.paths.rendererDir, name, "index.html"));
   }
 
-  static companionSizeFor(pack: SpritePackInfo, scale: number): Size {
-    const spriteW = pack.frameWidth * scale;
-    const spriteH = pack.frameHeight * scale;
-    return {
-      width: Math.max(COMPANION_MIN_WIDTH, spriteW + 40),
-      height: BUBBLE_AREA_HEIGHT + spriteH + LABEL_AREA_HEIGHT,
-    };
+  /** Geometry for a pack at a scale, on the display at `near` (its scale factor keeps pixels crisp). */
+  static layoutFor(pack: SpritePackInfo, scale: number, near: Point): CompanionLayout {
+    let scaleFactor = 1;
+    try {
+      scaleFactor = screen.getDisplayNearestPoint(near).scaleFactor;
+    } catch {
+      /* fall back to 1 */
+    }
+    return companionLayout({ frameWidth: pack.frameWidth, frameHeight: pack.frameHeight, bodyBox: pack.bodyBox, scale, scaleFactor });
   }
 
-  createCompanion(size: Size, position: Point, alwaysOnTop: boolean, onClosed: () => void): BrowserWindow {
-    this.companionSize = size;
+  get companionLayout(): CompanionLayout {
+    return this.layout;
+  }
+
+  createCompanion(layout: CompanionLayout, position: Point, alwaysOnTop: boolean, onClosed: () => void): BrowserWindow {
+    this.layout = layout;
+    const size = layout.window;
     this.onCompanionClosedCb = onClosed;
     const win = new BrowserWindow({
       width: size.width,
@@ -93,9 +104,11 @@ export class WindowManager implements CompanionPort {
       title: "Clawd Buddy",
       backgroundColor: "#00000000",
       icon: this.paths.icon,
+      ...this.platform.companionWindowOptions(),
       webPreferences: { ...this.secureWebPreferences(), backgroundThrottling: false, autoplayPolicy: "no-user-gesture-required" },
     });
     this.harden(win);
+    this.platform.setAlwaysOnTop(win, alwaysOnTop);
     // Click-through by default; the renderer turns interaction on while the pointer is over the character.
     win.setIgnoreMouseEvents(true, { forward: true });
     this.interactive = false;
@@ -109,15 +122,28 @@ export class WindowManager implements CompanionPort {
     return win;
   }
 
-  resizeCompanion(size: Size): void {
-    this.companionSize = size;
+  /** Applies a new layout, keeping Clawd's feet where they are (bottom-center anchor). */
+  setLayout(layout: CompanionLayout): void {
+    const prev = this.layout;
+    this.layout = layout;
+    const size = layout.window;
     const win = this.companion;
     if (!win || win.isDestroyed()) return;
+    if (prev.window.width === size.width && prev.window.height === size.height) {
+      this.sendToCompanion("companion:layout", layout);
+      return;
+    }
     const old = win.getBounds();
     // Keep the character's feet in place: anchor bottom-center.
     const x = Math.round(old.x + (old.width - size.width) / 2);
     const y = old.y + old.height - size.height;
     win.setBounds({ x, y, width: size.width, height: size.height });
+    this.sendToCompanion("companion:layout", layout);
+  }
+
+  /** Whether the companion window currently accepts mouse input (false = click-through). */
+  get companionInteractive(): boolean {
+    return this.interactive;
   }
 
   setCompanionInteractive(on: boolean): void {
@@ -139,7 +165,8 @@ export class WindowManager implements CompanionPort {
   }
 
   setAlwaysOnTop(on: boolean): void {
-    this.companion?.setAlwaysOnTop(on);
+    const win = this.companion;
+    if (win && !win.isDestroyed()) this.platform.setAlwaysOnTop(win, on);
   }
 
   // ---- CompanionPort ---------------------------------------------------------
@@ -155,11 +182,20 @@ export class WindowManager implements CompanionPort {
     const win = this.companion;
     if (!win || win.isDestroyed()) return;
     // setBounds keeps the size fixed even across DPI changes between monitors.
-    win.setBounds({ x: Math.round(p.x), y: Math.round(p.y), ...this.companionSize });
+    win.setBounds({ x: Math.round(p.x), y: Math.round(p.y), ...this.layout.window });
   }
 
   getSize(): Size {
-    return { ...this.companionSize };
+    return { ...this.layout.window };
+  }
+
+  bodyRect(): Rect {
+    return { ...this.layout.body };
+  }
+
+  /** Cursor position in DIP: the same coordinate space as BrowserWindow bounds on every OS. */
+  cursorPoint(): Point {
+    return screen.getCursorScreenPoint();
   }
 
   isVisible(): boolean {
@@ -167,7 +203,7 @@ export class WindowManager implements CompanionPort {
   }
 
   workAreas(): Rect[] {
-    return screen.getAllDisplays().map((d) => effectiveWorkArea(d.bounds, d.workArea));
+    return screen.getAllDisplays().map((d) => d.workArea);
   }
 
   workAreaNear(p: Point): Rect {
@@ -210,16 +246,21 @@ export class WindowManager implements CompanionPort {
       this.chat.focus();
       return this.chat;
     }
-    const bounds = this.chatBoundsNearCompanion({ width: 400, height: 580 });
+    const bounds = this.chatBoundsNearCompanion({ width: 380, height: 440 });
+    // A small frameless "terminal": its own pixel title bar is the drag handle and holds minimize/close.
     const win = new BrowserWindow({
       ...bounds,
-      minWidth: 320,
-      minHeight: 380,
-      title: "Chat — Clawd Buddy",
+      minWidth: 300,
+      minHeight: 260,
+      title: "CLAWD://TERMINAL",
+      frame: false,
       show: false,
       autoHideMenuBar: true,
-      backgroundColor: "#17140f",
+      backgroundColor: "#0d0f0c",
       alwaysOnTop,
+      fullscreenable: false,
+      maximizable: false,
+      roundedCorners: false,
       icon: this.paths.icon,
       webPreferences: this.secureWebPreferences(),
     });
@@ -234,18 +275,29 @@ export class WindowManager implements CompanionPort {
     return win;
   }
 
+  /** Next to Clawd's body (right side if there's room, else left), bottom-aligned with his feet, on his display. */
   private chatBoundsNearCompanion(size: Size): Rect {
     const c = this.companion && !this.companion.isDestroyed() ? this.companion.getBounds() : null;
-    const area = c ? screen.getDisplayMatching(c).workArea : screen.getPrimaryDisplay().workArea;
+    const body = c ? { x: c.x + this.layout.body.x, y: c.y + this.layout.body.y, width: this.layout.body.width, height: this.layout.body.height } : null;
+    const area = body ? screen.getDisplayMatching(body).workArea : screen.getPrimaryDisplay().workArea;
     let x = area.x + Math.round((area.width - size.width) / 2);
     let y = area.y + Math.round((area.height - size.height) / 2);
-    if (c) {
-      x = c.x - size.width - 8 >= area.x ? c.x - size.width - 8 : c.x + c.width + 8;
-      y = c.y + c.height - size.height;
+    if (body) {
+      const gap = 14;
+      x = body.x + body.width + gap + size.width <= area.x + area.width ? body.x + body.width + gap : body.x - gap - size.width;
+      y = body.y + body.height - size.height;
     }
     x = Math.min(Math.max(x, area.x), area.x + area.width - size.width);
     y = Math.min(Math.max(y, area.y), area.y + area.height - size.height);
     return { x, y, ...size };
+  }
+
+  /** Title-bar buttons of the frameless chat window. */
+  chatWindowControl(action: "minimize" | "close"): void {
+    const win = this.chat;
+    if (!win || win.isDestroyed()) return;
+    if (action === "minimize") win.minimize();
+    else win.close();
   }
 
   setChatAlwaysOnTop(on: boolean): void {

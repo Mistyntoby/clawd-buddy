@@ -51,16 +51,54 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
     const visible = await waitFor(() => companion.isVisible(), 5_000);
     check("companion window visible", visible);
     const b = companion.getBounds();
+    const body = clawd.windows.bodyRect();
     const inside = clawd.windows
       .workAreas()
-      .some((a) => b.x >= a.x && b.y >= a.y && b.x + b.width <= a.x + a.width && b.y + b.height <= a.y + a.height);
-    check("companion fully inside the usable desktop area", inside, JSON.stringify(b));
+      .some((a) => b.x + body.x >= a.x && b.y + body.y >= a.y && b.x + body.x + body.width <= a.x + a.width && b.y + body.y + body.height <= a.y + a.height);
+    check("character fully inside the usable desktop area", inside, JSON.stringify(b));
 
     const js = (win: BrowserWindow, code: string) => win.webContents.executeJavaScript(code, true);
 
     const spriteReady = await waitFor(async () => (await js(companion, "document.body.dataset.spriteReady")) === "true", 8_000);
     check("sprite frames loaded in renderer", spriteReady, String(await js(companion, "document.body.dataset.spriteStatus")));
-    check("placeholder label shown", (await js(companion, "!!document.querySelector('#placeholder-tag:not([hidden])')")) === true);
+    // Nothing but the character (and, when speaking, the bubble) is drawn: no label, caption, or name under Clawd.
+    const stray = await js(
+      companion,
+      "[...document.body.querySelectorAll('*')].filter((el) => !el.closest('#bubble') && el.children.length === 0 && (el.textContent ?? '').trim() !== '').map((el) => el.id || el.tagName)",
+    );
+    check("no label or text around the character", Array.isArray(stray) && stray.length === 0, JSON.stringify(stray));
+    const crisp = await js(
+      companion,
+      "(() => { const c = document.querySelector('#sprite'); const s = getComputedStyle(c); return { w: c.width, cssW: c.getBoundingClientRect().width, dpr: devicePixelRatio, ir: s.imageRendering }; })()",
+    );
+    const lay = clawd.windows.companionLayout;
+    check(
+      "sprite canvas is pixel-exact (integer device pixels per art pixel, no smoothing)",
+      Number.isInteger(lay.devicePixelsPerArtPixel) && crisp.w === clawd.assets.info().frameWidth * lay.devicePixelsPerArtPixel && /pixelated|crisp-edges/.test(String(crisp.ir)),
+      JSON.stringify({ ...crisp, devicePx: lay.devicePixelsPerArtPixel }),
+    );
+
+    // Hover: the window must become clickable over Clawd's pixels and stay click-through elsewhere.
+    {
+      const hover = (x: number, y: number) =>
+        js(companion, `window.dispatchEvent(new MouseEvent("mousemove", { clientX: ${x}, clientY: ${y}, bubbles: true }))`);
+      const errors: string[] = [];
+      const onConsole = (_e: unknown, level: number, message: string) => {
+        if (level >= 3) errors.push(message);
+      };
+      companion.webContents.on("console-message", onConsole);
+      await hover(body.x + body.width / 2, body.y + body.height / 2);
+      const onBody = await waitFor(() => clawd.windows.companionInteractive, 2_000);
+      await hover(4, 4);
+      const offBody = await waitFor(() => !clawd.windows.companionInteractive, 2_000);
+      companion.webContents.off("console-message", onConsole);
+      check("hovering Clawd makes him clickable; empty space stays click-through", onBody && offBody && errors.length === 0, errors.join(" | ").slice(0, 200));
+      const readable = await js(
+        companion,
+        "(() => { try { document.querySelector('#sprite').getContext('2d').getImageData(0, 0, 1, 1); return 'ok'; } catch (e) { return String(e && e.name); } })()",
+      );
+      check("sprite pixels are readable for pixel-exact hit testing", readable === "ok", String(readable));
+    }
 
     // Security: no Node in the renderer, and IPC policy rejects out-of-role calls.
     check("renderer has no require/process", (await js(companion, "typeof require === 'undefined' && typeof process === 'undefined'")) === true);
@@ -109,6 +147,68 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
     check("companion walks", wandered && (before.x !== after.x || clawd.controller.state === "idle"), `${before.x} -> ${after.x}`);
     clawd.controller.machine.send("ARRIVED");
 
+    // Drag and drop through the real window: positions come from the (here simulated) OS cursor.
+    {
+      const port = clawd.windows as unknown as { cursorPoint: () => { x: number; y: number } };
+      const realCursor = port.cursorPoint.bind(clawd.windows);
+      const start = clawd.windows.getPosition();
+      const area = clawd.windows.workAreas()[0]!;
+      let cursor = { x: start.x + body.x + 10, y: start.y + body.y + 10 };
+      port.cursorPoint = () => ({ ...cursor });
+      clawd.controller.machine.send("RESET");
+      clawd.controller.machine.send("WANDER_START"); // grab while walking
+      await wait(200);
+      // The press happens on Clawd wherever he is right now.
+      const pressAt = clawd.windows.getPosition();
+      cursor = { x: pressAt.x + body.x + 10, y: pressAt.y + body.y + 10 };
+      clawd.controller.grab();
+      const stoppedAt = clawd.windows.getPosition();
+      await wait(300);
+      check("grabbing stops wandering immediately", clawd.controller.state === "idle" && clawd.windows.getPosition().x === stoppedAt.x);
+      clawd.controller.dragStart();
+      const target = { x: area.x + Math.round(area.width * 0.3), y: area.y + Math.round(area.height * 0.4) };
+      for (let i = 1; i <= 10; i++) {
+        cursor = { x: cursor.x + (target.x - cursor.x) / (11 - i), y: cursor.y + (target.y - cursor.y) / (11 - i) };
+        clawd.controller.dragMove(); // what each renderer pointer event triggers
+        await wait(16);
+      }
+      const followed = clawd.windows.getPosition();
+      check(
+        "window follows each pointer event immediately (no catch-up lag)",
+        followed.x === Math.round(cursor.x - body.x - 10) && followed.y === Math.round(cursor.y - body.y - 10),
+        JSON.stringify(followed),
+      );
+      const statesSeen = clawd.controller.state;
+      clawd.controller.release();
+      const expected = { x: Math.round(target.x - body.x - 10), y: Math.round(target.y - body.y - 10) };
+      const dropped = clawd.windows.getPosition();
+      check("window stays exactly at the drop position", dropped.x === expected.x && dropped.y === expected.y, `${JSON.stringify(dropped)} vs ${JSON.stringify(expected)}`);
+      check("carried pose while held, landing after release", ["pickup", "drag"].includes(statesSeen) && clawd.controller.state === "land", `${statesSeen} -> ${clawd.controller.state}`);
+      await wait(900);
+      const settled = clawd.windows.getPosition();
+      check("landing doesn't move the window", settled.x === expected.x && settled.y === expected.y && clawd.controller.state !== "land", JSON.stringify(settled));
+      check("drop position is saved", JSON.stringify(clawd.settings.get().position) === JSON.stringify(expected));
+
+      // Five more drags in a row, including one whose release is never reported.
+      let ok = true;
+      for (let n = 0; n < 5; n++) {
+        const from = clawd.windows.getPosition();
+        cursor = { x: from.x + body.x + 12, y: from.y + body.y + 12 };
+        clawd.controller.grab();
+        clawd.controller.dragStart();
+        const to = { x: area.x + 200 + n * 150, y: area.y + 150 + n * 90 };
+        cursor = { x: to.x, y: to.y };
+        clawd.controller.dragMove();
+        if (n === 3) continue; // lost release: the next grab must still work
+        clawd.controller.release();
+        const at = clawd.windows.getPosition();
+        ok &&= at.x === to.x - body.x - 12 && at.y === to.y - body.y - 12;
+        await wait(50);
+      }
+      check("repeated drags all land exactly, even after a lost release", ok && !clawd.controller.isHeld);
+      port.cursorPoint = realCursor;
+    }
+
     // Chat (offline mode, no API key in the smoke profile).
     clawd.openChat();
     const chat = clawd.windows.chat;
@@ -120,12 +220,46 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
         chat,
         "(() => { const i = document.querySelector('#input'); i.value = 'hello there'; document.querySelector('#composer').requestSubmit(); })()",
       );
-      const replied = await waitFor(async () => (await js(chat, "document.querySelectorAll('.msg.assistant').length")) >= 1, 5_000);
+      const replied = await waitFor(async () => (await js(chat, "document.querySelectorAll('.line.assistant').length")) >= 1, 5_000);
       check("offline chat reply rendered", replied);
-      const label = await js(chat, "document.querySelector('.msg.assistant .msg-source')?.textContent ?? ''");
-      check("offline reply labeled as offline (not Claude)", /offline/i.test(String(label)) && String(label).trim() !== "Claude", String(label));
-      await wait(400); // let the message fade-in finish
+      const label = await js(chat, "document.querySelector('.line.assistant .msg-source')?.textContent ?? ''");
+      check("offline reply labeled as offline (not Claude)", /offline/i.test(String(label)) && /not from Claude/i.test(String(label)), String(label));
+      const term = await js(chat, "({ title: document.querySelector('#titlebar .title')?.textContent, status: document.querySelector('#status')?.textContent, font: getComputedStyle(document.body).fontFamily, ready: document.fonts.check('20px VT323') })");
+      check("chat is the retro terminal (title, status, pixel font)", /CLAWD:\/\/TERMINAL/.test(String(term.title)) && /OFFLINE|READY/.test(String(term.status)) && String(term.font).includes("VT323"), JSON.stringify(term));
+
+      const typeCommand = (cmd: string) =>
+        js(chat, `(() => { const i = document.querySelector('#input'); i.value = ${JSON.stringify(cmd)}; document.querySelector('#composer').requestSubmit(); })()`);
+      const lines = () => js(chat, "document.querySelectorAll('#screen .line').length") as Promise<number>;
+      const before = await lines();
+      await typeCommand("/help");
+      check("/help prints the command list", await waitFor(async () => (await lines()) >= before + 2 && /\/remind/.test(String(await js(chat, "document.querySelector('#screen').textContent"))), 3_000));
+      await typeCommand("/remind 10m stretch");
+      const reminded = await waitFor(() => clawd.reminders.list().some((r) => r.text === "stretch"), 3_000);
+      check("/remind adds a reminder", reminded);
+      const r = clawd.reminders.list().find((x) => x.text === "stretch");
+      if (r) clawd.reminders.remove(r.id);
+      await typeCommand("/joke");
+      check("/joke tells a joke and Clawd reacts", await waitFor(async () => /🥁/.test(String(await js(chat, "document.querySelector('#screen').textContent"))), 3_000));
+      await wait(600); // let the reveal finish
       await capture(chat, path.join(dir, "chat.png"));
+    }
+
+    // Clawd import (real in-app path). Runs after the screenshots so imported art never appears in them.
+    {
+      const r = await clawd.importClawdFromClaudeApp();
+      if (r.ok) {
+        const pack = clawd.assets.info();
+        const needed = ["idle", "walk", "pickup", "drag", "land", "think", "talk"] as const;
+        const loadedInRenderer = await waitFor(async () => (await js(companion, "document.body.dataset.pack")) === "clawd" && (await js(companion, "document.body.dataset.spriteReady")) === "true", 5_000);
+        check(
+          "Clawd imported from the local Claude app and active",
+          pack.id === "clawd" && needed.every((n) => !!pack.animations[n]) && r.skipped.length === 0 && loadedInRenderer,
+          `${r.animations} animations, skipped ${r.skipped.length}`,
+        );
+        fs.rmSync(path.join(clawd.assets.userDir, "clawd"), { recursive: true, force: true });
+      } else {
+        check("Clawd import fails gracefully when the Claude app isn't installed", /wasn't found|format/i.test(r.error), r.error);
+      }
     }
 
     // Missing assets: a broken user pack must not crash anything.

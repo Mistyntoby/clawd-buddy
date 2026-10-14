@@ -1,41 +1,44 @@
 # Manual test procedure
 
-Automated coverage: `npm test` (105 unit tests) and `npm run smoke` (22 runtime checks against the real app: windows, sprite loading, IPC policy, first-run flow, settings validation, walking, offline chat labeling, broken sprite packs, hide/show, on-screen placement).
+Automated coverage: `npm test` (unit tests) and `npm run smoke` (runtime checks against the real app on a throw-away profile: windows, transparency and hit-testing, drag and drop through the real window including repeated drags and a lost release, landing without movement, the chat terminal and its commands, reminders, offline labeling, the Clawd import, security boundaries, broken sprite packs, hide/show). CI runs both on Windows and macOS.
 
-The items below involve native OS UI (context menus, the tray, real mouse drags) that the smoke test doesn't drive. Run them before a release.
+The items below need a person, a real mouse or trackpad, and native OS UI (menus, tray/menu bar, notifications). Run them on **both Windows and macOS** before a release.
 
 ## Setup
 
-Start from a clean profile: quit the app and rename `%APPDATA%\Clawd Buddy` (or use a fresh Windows user). Then run `npm start` or the installed app.
+Start from a clean profile: quit the app and rename the data folder (Windows `%APPDATA%\Clawd Buddy`, macOS `~/Library/Application Support/Clawd Buddy`). Then use the launcher, `npm start`, or the packaged app.
 
 ## Checklist
 
-1. **First run.** The companion appears bottom-right with a welcome bubble, and Settings opens on *Welcome*.
-2. **Transparency and click-through.** Clicking empty space next to the character reaches the window underneath. The character itself is clickable.
-3. **Single-click.** The character does a happy hop with a pop sound (if sounds are on).
-4. **Double-click.** The chat window opens next to the companion.
-5. **Right-click.** A native menu appears with Talk to Clawd, Open chat, Tell me something, What can you help with?, Wander around ✓, Movement speed ▸, Sounds ✓, Settings…, Hide, and Quit. Try each item:
-   - *Tell me something* shows a fun fact (offline) or a Claude reply (online).
-   - *What can you help with?* shows the help bubble.
-   - Unchecking *Wander around* stops all walking.
-   - The *Movement speed* radio items change walking speed.
-6. **Drag.** Drag the character across the screen and onto a second monitor. Release it partly off-screen and confirm it snaps fully onto the display. Quit and relaunch: it reappears in the same spot.
-7. **Tray.** Left-click toggles show/hide, and the first hide shows a one-time hint. The right-click menu items all work.
-8. **Single instance.** Launching the app a second time doesn't create a second companion, and a hidden companion reappears.
-9. **Displays.** Change the display resolution or scaling, or unplug a monitor. The companion stays fully visible.
-10. **Auto-hide taskbar.** With the taskbar on auto-hide, the companion sits above where the taskbar pops up.
-11. **Offline chat.** With no key set, replies are labeled "Offline mode · scripted reply, not from Claude", and a banner explains offline mode.
-12. **Claude chat** (needs a valid key; usage is billed):
-    - Settings → AI: save the key and run *Test connection*, which should report the model as available.
-    - In chat, Clawd shows *think*, then *talk* while text streams into the chat and the bubble, then idle.
-    - Click *Stop* mid-reply: the reply stops, "Stopped." appears, and Clawd returns to idle.
-    - Use an invalid key: you get a friendly "key was rejected" message and Clawd looks confused.
-    - Disconnect the network: you get the friendly network message.
-13. **Claude subscription** (needs Claude Code signed in with a Claude plan; counts toward its usage limits):
-    - Settings → AI: set *Connect with* to *Claude subscription*, enable Claude, and run *Test connection*. It names your plan.
-    - Chat: replies stream, *Stop* works, and the chat header shows "· subscription".
-    - Temporarily rename `claude.exe` and *Test connection*: you get "Claude Code wasn't found", and chat falls back to labeled offline replies.
-14. **Memory.** Type "remember that I like tea". A Save / Don't-save card appears (or a notice if memory is off). Saved items appear in Settings → Memory and can be edited and deleted.
-15. **Settings persistence.** Change speed, size, sounds, and always-on-top, then restart. All changes are kept. *Reset all settings* restores the defaults.
-16. **Launch at startup.** In the installed app the toggle is enabled and adds a login item; when running from source it's disabled with an explanation.
-17. **Sprites.** Settings → Character → *Open sprite folder*. Add a folder with a broken `manifest.json` and click *Reload*: the error is listed and the app keeps running. Add a valid pack containing only `idle`: it's used, and the other animations show "fallback".
+1. **First run.** The companion appears bottom-right with a welcome bubble and waves; Settings opens on *Welcome* with the right instructions for the OS.
+2. **Clawd import.** Settings → Character & sprites → *Import Clawd from the Claude app* (with the Claude desktop app installed). The stand-in turns into Clawd immediately; the pack shows "from your Claude app". Without the Claude app, a clear "wasn't found" message.
+3. **No label.** Nothing is drawn under or around the character except speech bubbles.
+4. **Click-through.** Clicking the empty space next to Clawd reaches the window underneath; only his visible pixels are clickable.
+5. **Click.** Opens the CLAWD://TERMINAL chat beside him (he waves). Clicking again focuses it.
+6. **Petting.** Rub the pointer quickly back and forth over him (without pressing): a happy reaction and a short bubble; rubbing on and on doesn't spam reactions (cooldown).
+7. **Drag and drop** (mouse, then trackpad):
+   - Press and move: a short crouch, then the arms-up carried pose; he follows the pointer smoothly without lag or stutter, also when moving fast and on a high-refresh display.
+   - Release: he lands exactly where you let go (squash, small bounce) and stays there. The window never shifts during or after the landing.
+   - Repeat 10+ times without restarting, while idle, walking, talking, and thinking (send a chat message, then drag during the reply).
+   - Fling quickly and release outside his old position: no stuck drag, no jump.
+   - Release over another window, Alt-Tab / Cmd-Tab mid-drag, press Esc mid-drag: the drag always ends cleanly where he is.
+   - A click without movement still opens the chat (no accidental drag); a drag never also opens the chat.
+   - Drop partly off a screen edge: only nudged far enough to keep his body visible.
+   - Second monitor (including one left of or above the main one, and one with different scaling): drag across, drop, quit, relaunch; he reappears at the same spot.
+8. **Wandering.** He walks in short, deliberate trips (smooth start and stop, pauses between legs) and never while held. Unchecking *Wander around* stops all autonomous movement.
+9. **Chat terminal.** Enter sends, Shift+Enter adds a line, Esc minimizes (or stops a reply), `_` minimizes, `X` closes (Clawd stays); dragging the title bar moves the terminal. The status shows READY/OFFLINE, THINKING..., TYPING..., ERROR. Text is sharp at 100%, 125%, 150% scaling and on Retina.
+10. **Commands.** `/help`, `/joke` (setup, pause, punchline, happy reaction), `/fact` (lightbulb), `/pet`, `/trick` and `/trick hula`, `/remind 1m test`, `/reminders`, `/done 1`, `/forget 1`, `/search crabs` (opens the browser only then), `/clear`.
+11. **Reminders.** Add one for 1 minute in Settings → Reminders: when due, Clawd shows a bubble and waves (or, if hidden, a system notification). Mark it *Done*, delete another. Quit with a pending reminder, relaunch after it was due: it fires at startup.
+12. **Context menu.** Chat, Tell a joke, Fun fact, Pet, Do a trick ▸, Reminders…, Wander, Movement speed ▸, Sounds, Settings…, Hide, Quit all work.
+13. **Tray / menu bar.** Windows: left-click toggles show/hide; right-click shows the menu. macOS: clicking the menu bar icon opens the menu. Copy/paste work in the chat on macOS (⌘C/⌘V).
+14. **Idle chatter.** Off: no unprompted remarks. Quiet: rare and silent. Chatty: every 6–15 minutes with a sound.
+15. **Animation intensity and reduced motion.** Calm/Lively visibly change how often he does things. *Reduce motion* (or the OS setting) removes squash, bounce, and the terminal's typing effect.
+16. **Chat history.** Chat, quit, relaunch: the recent conversation is still there. *Keep chat history* off deletes it; `/clear` and *Clear chat history* empty it.
+17. **Read replies aloud.** On: replies are spoken with the system voice.
+18. **Claude chat** (needs Claude Code signed in, or an API key):
+    - *Test connection* reports your plan or model.
+    - In chat, Clawd thinks, then types on his laptop while text streams in, then idles.
+    - *STOP* mid-reply stops it; an invalid key, no network, or a usage limit give friendly messages and a confused reaction (never a happy one).
+19. **Single instance.** Launching again doesn't create a second Clawd; a hidden Clawd reappears.
+20. **Launch at startup.** Packaged app only: the toggle adds a login item (Windows startup apps / macOS Login Items).
+21. **Launchers.** Double-click `Launch-ClawdBuddy.bat` (Windows) and `Launch-ClawdBuddy.command` (macOS, after the one-time permission in docs/MACOS.md). With `node_modules` deleted, each asks before running `npm ci`.

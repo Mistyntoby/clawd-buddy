@@ -7,7 +7,7 @@ import { ANIMATION_NAMES, type AnimationName } from "./types";
  * checked separately by the main process asset provider.
  */
 
-export interface ManifestAnimation {
+export interface ManifestSequence {
   /** Individual frame image files, relative to the pack directory. */
   frames?: string[];
   /** Alternatively, a horizontal sprite strip, relative to the pack directory. */
@@ -15,6 +15,15 @@ export interface ManifestAnimation {
   frameCount?: number;
   fps: number;
   loop: boolean;
+  /** Frame index looping restarts from (an intro before it plays once). */
+  loopStart: number;
+  /** Optional display name for the "Do a trick" menu. */
+  label?: string;
+}
+
+/** An animation is one sequence, or (in the manifest) an array of alternative sequences. */
+export interface ManifestAnimation extends ManifestSequence {
+  variants: ManifestSequence[];
 }
 
 export interface SpriteManifest {
@@ -28,6 +37,8 @@ export interface SpriteManifest {
   attribution: string;
   frameWidth: number;
   frameHeight: number;
+  /** Standing body bounds in frame pixels [x, y, w, h]; defaults to the whole frame. */
+  bodyBox: [number, number, number, number];
   animations: Partial<Record<AnimationName, ManifestAnimation>>;
 }
 
@@ -60,6 +71,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 export const ANIMATION_FALLBACKS: Record<AnimationName, AnimationName[]> = {
   idle: [],
+  "idle-variation": ["idle"],
+  idea: ["action", "happy", "idle"],
   walk: ["idle"],
   think: ["idle"],
   talk: ["idle"],
@@ -68,6 +81,10 @@ export const ANIMATION_FALLBACKS: Record<AnimationName, AnimationName[]> = {
   sleep: ["idle"],
   wake: ["idle"],
   action: ["happy", "idle"],
+  wave: ["action", "happy", "idle"],
+  pickup: ["drag", "action", "idle"],
+  drag: ["pickup", "action", "idle"],
+  land: ["idle"],
 };
 
 export function resolveFallback(
@@ -136,6 +153,7 @@ export function parseManifest(raw: unknown): ParseResult {
       attribution: str(raw.attribution, ""),
       frameWidth: frameWidth as number,
       frameHeight: frameHeight as number,
+      bodyBox: parseBodyBox(raw.bodyBox, frameWidth as number, frameHeight as number, warnings),
       animations,
     },
     errors,
@@ -143,7 +161,42 @@ export function parseManifest(raw: unknown): ParseResult {
   };
 }
 
+function label(value: Record<string, unknown>): { label?: string } {
+  const l = value.label;
+  return typeof l === "string" && l.trim() ? { label: l.trim().slice(0, 40) } : {};
+}
+
+function parseBodyBox(value: unknown, fw: number, fh: number, warnings: string[]): [number, number, number, number] {
+  const whole: [number, number, number, number] = [0, 0, fw, fh];
+  if (value === undefined) return whole;
+  if (
+    Array.isArray(value) &&
+    value.length === 4 &&
+    value.every((n) => typeof n === "number" && Number.isInteger(n) && n >= 0) &&
+    (value[2] as number) > 0 &&
+    (value[3] as number) > 0 &&
+    (value[0] as number) + (value[2] as number) <= fw &&
+    (value[1] as number) + (value[3] as number) <= fh
+  ) {
+    return value as [number, number, number, number];
+  }
+  warnings.push("bodyBox must be [x, y, width, height] inside the frame; using the whole frame.");
+  return whole;
+}
+
 function parseAnimation(name: AnimationName, value: unknown, warnings: string[]): ManifestAnimation | null {
+  const list = Array.isArray(value) ? value : [value];
+  if (list.length === 0 || list.length > 16) {
+    warnings.push(`Animation "${name}" needs 1–16 sequences; skipped.`);
+    return null;
+  }
+  const sequences = list.map((v, i) => parseSequence(list.length > 1 ? `${name}[${i}]` : name, v, warnings)).filter((s): s is ManifestSequence => s !== null);
+  const [first, ...variants] = sequences;
+  if (!first) return null;
+  return { ...first, variants };
+}
+
+function parseSequence(name: string, value: unknown, warnings: string[]): ManifestSequence | null {
   if (!isRecord(value)) {
     warnings.push(`Animation "${name}" is not an object; skipped.`);
     return null;
@@ -152,17 +205,24 @@ function parseAnimation(name: AnimationName, value: unknown, warnings: string[])
   const fps = typeof fpsRaw === "number" && fpsRaw > 0 && fpsRaw <= 60 ? fpsRaw : 6;
   if (fpsRaw !== undefined && fps !== fpsRaw) warnings.push(`Animation "${name}" has invalid fps; using 6.`);
   const loop = value.loop !== false;
+  const loopStartRaw = value.loopStart;
+  const loopStartOk = loopStartRaw === undefined || (typeof loopStartRaw === "number" && Number.isInteger(loopStartRaw) && loopStartRaw >= 0);
+  if (!loopStartOk) warnings.push(`Animation "${name}" has an invalid loopStart; using 0.`);
+  const withLoopStart = (count: number): number => {
+    const ls = loopStartOk && typeof loopStartRaw === "number" ? loopStartRaw : 0;
+    return ls < count ? ls : 0;
+  };
 
   if (Array.isArray(value.frames)) {
     const frames = value.frames.filter(isSafeRelativeImagePath);
     if (frames.length !== value.frames.length) {
       warnings.push(`Animation "${name}" has unsafe or invalid frame paths; they were dropped.`);
     }
-    if (frames.length === 0 || frames.length > 120) {
+    if (frames.length === 0 || frames.length > 240) {
       warnings.push(`Animation "${name}" has no usable frames; skipped.`);
       return null;
     }
-    return { frames, fps, loop };
+    return { frames, fps, loop, loopStart: withLoopStart(frames.length), ...label(value) };
   }
 
   if (value.sheet !== undefined) {
@@ -171,11 +231,11 @@ function parseAnimation(name: AnimationName, value: unknown, warnings: string[])
       warnings.push(`Animation "${name}" has an unsafe sheet path; skipped.`);
       return null;
     }
-    if (typeof count !== "number" || !Number.isInteger(count) || count < 1 || count > 120) {
-      warnings.push(`Animation "${name}" needs an integer frameCount (1–120); skipped.`);
+    if (typeof count !== "number" || !Number.isInteger(count) || count < 1 || count > 240) {
+      warnings.push(`Animation "${name}" needs an integer frameCount (1–240); skipped.`);
       return null;
     }
-    return { sheet: value.sheet, frameCount: count, fps, loop };
+    return { sheet: value.sheet, frameCount: count, fps, loop, loopStart: withLoopStart(count), ...label(value) };
   }
 
   warnings.push(`Animation "${name}" has neither "frames" nor "sheet"; skipped.`);
@@ -187,8 +247,10 @@ export function referencedFiles(manifest: SpriteManifest): string[] {
   const files = new Set<string>();
   for (const anim of Object.values(manifest.animations)) {
     if (!anim) continue;
-    for (const f of anim.frames ?? []) files.add(f);
-    if (anim.sheet) files.add(anim.sheet);
+    for (const seq of [anim, ...anim.variants]) {
+      for (const f of seq.frames ?? []) files.add(f);
+      if (seq.sheet) files.add(seq.sheet);
+    }
   }
   return [...files];
 }

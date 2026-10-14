@@ -9,7 +9,6 @@ import {
   validateChatMessage,
   validateCommand,
   validateId,
-  validatePoint,
   validateSection,
 } from "../shared/validation";
 import { toFriendlyError } from "./chat-errors";
@@ -57,30 +56,30 @@ export function registerIpc(app: ClawdApp, rendererDir: string): void {
   handle("companion:ready", () => {
     const init = {
       pack: app.assets.info(),
-      view: { animation: app.controller.state, facing: "right" as const },
+      view: app.controller.view,
       config: app.companionConfig(),
+      layout: app.windows.companionLayout,
     };
     setTimeout(() => app.companionReady(), 0);
     return init;
   });
   listen("companion:set-interactive", (p) => {
     const v = validateBoolean(p);
-    if (v.ok && !app.controller.isDragging) app.windows.setCompanionInteractive(v.value);
+    if (v.ok && !app.controller.isHeld) app.windows.setCompanionInteractive(v.value);
   });
-  listen("companion:drag-start", (p) => {
-    const v = validatePoint(p);
-    if (v.ok) {
-      app.windows.setCompanionInteractive(true);
-      app.controller.dragStart(v.value);
-    }
+  // Drag protocol: the renderer only reports press / drag start / release.
+  // Positions always come from the OS cursor in the main process (DIP), never from renderer coordinates.
+  listen("companion:grab", () => {
+    app.windows.setCompanionInteractive(true);
+    app.controller.grab();
   });
-  listen("companion:drag-move", (p) => {
-    const v = validatePoint(p);
-    if (v.ok) app.controller.dragMove(v.value);
+  listen("companion:drag-start", () => {
+    app.windows.setCompanionInteractive(true);
+    app.controller.dragStart();
   });
-  listen("companion:drag-end", () => {
-    app.controller.dragEnd();
-    app.savePositionSoon();
+  listen("companion:drag-move", () => app.controller.dragMove());
+  listen("companion:release", () => {
+    app.controller.release();
   });
   listen("companion:context-menu", () => app.showContextMenu());
   listen("companion:command", (p) => {
@@ -101,9 +100,12 @@ export function registerIpc(app: ClawdApp, rendererDir: string): void {
   });
   handle("chat:status", () => {
     const s = app.settings.get();
-    return { ...app.aiStatus(), name: s.companionName, memoryEnabled: s.memoryEnabled };
+    return { ...app.aiStatus(), name: s.companionName, memoryEnabled: s.memoryEnabled, readAloud: s.readAloud, reducedMotion: s.reducedMotion };
   });
   handle("chat:transcript", () => app.chat.transcript());
+  listen("chat:window", (p) => {
+    if (p === "minimize" || p === "close") app.windows.chatWindowControl(p);
+  });
 
   // ---- settings ----------------------------------------------------------------
   handle("settings:get", () => app.settingsInit());
@@ -182,9 +184,16 @@ export function registerIpc(app: ClawdApp, rendererDir: string): void {
   handle("memory:clear", () => app.memory.clear());
 
   // ---- assets ----------------------------------------------------------------------
+  // ---- reminders -----------------------------------------------------------------
+  handle("reminders:list", () => app.reminders.list());
+  handle("reminders:add", (p) => app.addReminder(typeof p === "string" ? p.slice(0, 400) : ""));
+  handle("reminders:dismiss", (p) => typeof p === "string" && app.reminders.dismiss(p));
+  handle("reminders:remove", (p) => typeof p === "string" && app.reminders.remove(p));
+
   handle("assets:info", () => ({ pack: app.assets.info(), packs: app.assets.listPacks() }));
   handle("assets:reload", () => app.reloadAssets());
   handle("assets:open-folder", () => app.openSpriteFolder());
+  handle("assets:import-clawd", () => app.importClawdFromClaudeApp());
 
   // ---- app ---------------------------------------------------------------------------
   listen("app:open-settings", (p) => {

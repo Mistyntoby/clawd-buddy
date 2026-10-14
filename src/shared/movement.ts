@@ -118,3 +118,63 @@ export function stepToward(x: number, target: number, speedPxPerSec: number, dtM
 export function randomBetween(rng: Rng, min: number, max: number): number {
   return Math.round(min + rng() * (max - min));
 }
+
+/**
+ * Window-position bounds that keep an inner rectangle (Clawd's body, given
+ * relative to the window) fully inside a work area. The transparent parts of
+ * the window may hang off the screen edge.
+ */
+export function boundsForBody(area: Rect, body: Rect): Bounds {
+  const minX = area.x - body.x;
+  const minY = area.y - body.y;
+  const maxX = Math.max(minX, area.x + area.width - body.x - body.width);
+  const maxY = Math.max(minY, area.y + area.height - body.y - body.height);
+  return { minX, maxX, minY, maxY };
+}
+
+/** Position after a drop: exactly the release position, moved only as far as needed to keep the body on a display. */
+export function dropPosition(release: Point, body: Rect, areas: readonly Rect[]): Point {
+  const bodyRect = { x: release.x + body.x, y: release.y + body.y, width: body.width, height: body.height };
+  const area = findContainingArea(bodyRect, areas) ?? nearestArea(bodyRect, areas);
+  if (!area) return { x: Math.round(release.x), y: Math.round(release.y) };
+  return clampPosition(release, boundsForBody(area, body));
+}
+
+function nearestArea(r: Rect, areas: readonly Rect[]): Rect | null {
+  let best: Rect | null = null;
+  let bestDist = Infinity;
+  const cx = r.x + r.width / 2;
+  const cy = r.y + r.height / 2;
+  for (const a of areas) {
+    const dx = Math.max(a.x - cx, 0, cx - (a.x + a.width));
+    const dy = Math.max(a.y - cy, 0, cy - (a.y + a.height));
+    const d = dx * dx + dy * dy;
+    if (d < bestDist) {
+      bestDist = d;
+      best = a;
+    }
+  }
+  return best;
+}
+
+export interface WalkState {
+  x: number;
+  /** Current speed, px/s (always >= 0; direction comes from the target). */
+  v: number;
+}
+
+/**
+ * One step of a walk with smooth acceleration and braking: speed ramps up to
+ * `maxSpeed` at `accel` px/s², and ramps down early enough to stop exactly on
+ * the target (v ≤ √(2·accel·remaining)).
+ */
+export function stepWalk(state: WalkState, target: number, maxSpeed: number, accel: number, dtMs: number): WalkState & { arrived: boolean } {
+  const dt = Math.max(0, dtMs) / 1000;
+  const remaining = Math.abs(target - state.x);
+  if (remaining < 0.5) return { x: target, v: 0, arrived: true };
+  const brake = Math.sqrt(2 * accel * remaining);
+  const v = Math.min(maxSpeed, brake, state.v + accel * dt);
+  const step = Math.max(v * dt, Math.min(remaining, 0.5));
+  if (step >= remaining) return { x: target, v: 0, arrived: true };
+  return { x: state.x + Math.sign(target - state.x) * step, v, arrived: false };
+}

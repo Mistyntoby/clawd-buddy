@@ -1,5 +1,6 @@
 import type {
   AiStatus,
+  AnimationIntensity,
   CapabilityInfo,
   ChatEvent,
   CompanionView,
@@ -9,13 +10,16 @@ import type {
   SpritePackInfo,
   TranscriptEntry,
 } from "./types";
+import type { CompanionLayout } from "./layout";
+import type { Reminder } from "./reminders";
 import type { CompanionCommand, SettingsSection } from "./validation";
 
 export type Unsubscribe = () => void;
 
 export interface CompanionConfig {
   scale: number;
-  showPlaceholderLabel: boolean;
+  reducedMotion: boolean;
+  animationIntensity: AnimationIntensity;
   soundEnabled: boolean;
   name: string;
 }
@@ -24,6 +28,7 @@ export interface CompanionInit {
   pack: SpritePackInfo;
   view: CompanionView;
   config: CompanionConfig;
+  layout: CompanionLayout;
 }
 
 export interface PackSummary {
@@ -50,9 +55,14 @@ export interface ClawdApi {
   companion: {
     ready(): Promise<CompanionInit>;
     setInteractive(on: boolean): void;
-    dragStart(screenX: number, screenY: number): void;
-    dragMove(screenX: number, screenY: number): void;
-    dragEnd(): void;
+    /** Pointer pressed on Clawd (movement stops). */
+    grab(): void;
+    /** The press became a drag (the window follows the OS cursor). */
+    dragStart(): void;
+    /** The pointer moved during a drag; the main process moves the window to the OS cursor. */
+    dragMove(): void;
+    /** Pointer released or cancelled (drop, or end of a click). */
+    release(): void;
     contextMenu(): void;
     command(cmd: CompanionCommand): void;
     dismissSpeech(): void;
@@ -61,16 +71,20 @@ export interface ClawdApi {
     onSound(cb: (sound: "pop" | "chime" | "blip" | "error") => void): Unsubscribe;
     onPack(cb: (pack: SpritePackInfo) => void): Unsubscribe;
     onConfig(cb: (config: CompanionConfig) => void): Unsubscribe;
+    onLayout(cb: (layout: CompanionLayout) => void): Unsubscribe;
   };
   chat: {
     send(text: string): Promise<{ ok: true; requestId: string } | { ok: false; error: string }>;
     cancel(): Promise<boolean>;
     clear(): Promise<void>;
-    status(): Promise<AiStatus & { name: string; memoryEnabled: boolean }>;
+    status(): Promise<AiStatus & { name: string; memoryEnabled: boolean; readAloud: boolean; reducedMotion: boolean }>;
     transcript(): Promise<TranscriptEntry[]>;
     onEvent(cb: (event: ChatEvent) => void): Unsubscribe;
     onStatus(cb: () => void): Unsubscribe;
     onFocusInput(cb: () => void): Unsubscribe;
+    onCleared(cb: () => void): Unsubscribe;
+    /** Minimize or close this (frameless) chat window. */
+    windowControl(action: "minimize" | "close"): void;
   };
   settings: {
     get(): Promise<SettingsInit>;
@@ -91,10 +105,20 @@ export interface ClawdApi {
     remove(id: string): Promise<boolean>;
     clear(): Promise<void>;
   };
+  reminders: {
+    list(): Promise<Reminder[]>;
+    /** Parses "10m stretch", "at 15:30 standup", … and adds it. */
+    add(spec: string): Promise<{ ok: true; message: string } | { ok: false; error: string }>;
+    dismiss(id: string): Promise<boolean>;
+    remove(id: string): Promise<boolean>;
+    onChanged(cb: () => void): Unsubscribe;
+  };
   assets: {
     info(): Promise<{ pack: SpritePackInfo; packs: PackSummary[] }>;
     reload(): Promise<{ pack: SpritePackInfo; packs: PackSummary[] }>;
     openFolder(): Promise<void>;
+    /** Builds a local Clawd pack from the Claude desktop app installed on this computer. */
+    importClawd(): Promise<{ ok: true; animations: number; skipped: string[] } | { ok: false; error: string }>;
   };
   app: {
     openSettings(section?: SettingsSection): void;

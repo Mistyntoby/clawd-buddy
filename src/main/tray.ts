@@ -1,6 +1,6 @@
 import { Menu, nativeImage, Tray } from "electron";
-import * as path from "node:path";
 import type { ClawdApp } from "./clawd-app";
+import type { PlatformAdapter } from "./platform";
 
 /**
  * System tray icon: the always-available way to show Clawd again, open chat
@@ -13,14 +13,18 @@ export class TrayController {
   constructor(
     private readonly app: ClawdApp,
     private readonly iconDir: string,
+    private readonly platform: PlatformAdapter,
   ) {}
 
   create(): void {
-    const image = nativeImage.createFromPath(path.join(this.iconDir, "tray.png"));
+    const image = this.platform.trayIcon(this.iconDir);
     this.tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image);
     this.tray.setToolTip("Clawd Buddy");
-    this.tray.on("click", () => this.app.toggleCompanion());
-    this.tray.on("double-click", () => this.app.showCompanion());
+    // On macOS, clicking a menu bar item opens its menu; on Windows, a click toggles Clawd.
+    if (this.platform.trayClickToggles) {
+      this.tray.on("click", () => this.app.toggleCompanion());
+      this.tray.on("double-click", () => this.app.showCompanion());
+    }
     this.refresh();
   }
 
@@ -44,7 +48,7 @@ export class TrayController {
 
   /** One-time hint so users know how to bring the companion back. */
   notifyHidden(): void {
-    if (this.hiddenNoticeShown || !this.tray || process.platform !== "win32") return;
+    if (this.hiddenNoticeShown || !this.tray || !this.platform.trayBalloons) return;
     this.hiddenNoticeShown = true;
     try {
       this.tray.displayBalloon({

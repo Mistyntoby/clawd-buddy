@@ -294,6 +294,54 @@ const anims = {
       { arms: [-2, -2], mouth: "smile" },
     ],
   },
+  "idle-variation": {
+    fps: 4,
+    loop: false,
+    frames: [{}, { lookUp: 1, antenna: -1 }, { lookUp: 1, antenna: -1, eyes: "half" }, { lookUp: 1, antenna: 1 }, { antenna: 1 }, {}, { eyes: "closed" }, {}],
+  },
+  idea: {
+    fps: 5,
+    loop: false,
+    frames: [
+      { lookUp: 1, mouth: "o" },
+      { lookUp: 1, mouth: "o", extra: "bang" },
+      { eyes: "happy", mouth: "open", arms: [-5, 0], extra: "sparkle1" },
+      { eyes: "happy", mouth: "open", arms: [-5, 0], extra: "sparkle2" },
+      { eyes: "happy", mouth: "smile", arms: [-5, 0], extra: "sparkle1" },
+      { mouth: "smile" },
+    ],
+  },
+  wave: {
+    fps: 8,
+    loop: false,
+    frames: [
+      { arms: [0, -2], mouth: "smile" },
+      { arms: [0, -5], mouth: "open" },
+      { arms: [0, -3], mouth: "open" },
+      { arms: [0, -5], mouth: "open" },
+      { arms: [0, -3], mouth: "smile" },
+      { arms: [0, -5], mouth: "smile" },
+      { arms: [0, -2], mouth: "smile" },
+    ],
+  },
+  pickup: {
+    fps: 12,
+    loop: false,
+    frames: [{ dy: 2, eyes: "closed", mouth: "o" }, { dy: -2, eyes: "open", mouth: "o", arms: [-5, -5] }],
+  },
+  drag: {
+    fps: 6,
+    loop: true,
+    frames: [
+      { dy: -2, mouth: "o", arms: [-6, -6], feet: 1 },
+      { dy: -3, mouth: "o", arms: [-6, -6], feet: 2 },
+    ],
+  },
+  land: {
+    fps: 12,
+    loop: false,
+    frames: [{ dy: -1, mouth: "o", arms: [-4, -4] }, { dy: 2, eyes: "closed", mouth: "flat" }, { dy: 1, eyes: "half" }, { dy: -1 }, {}],
+  },
 };
 
 const manifest = {
@@ -307,6 +355,8 @@ const manifest = {
   attribution: "Original placeholder character created for Clawd Buddy. Not Clawd, and not Anthropic artwork.",
   frameWidth: W,
   frameHeight: H,
+  // Pip's standing body (with antenna), so the stand-in is kept on screen by its body, not its frame.
+  bodyBox: [5, 3, 23, 26],
   animations: {},
 };
 
@@ -362,7 +412,36 @@ function icon(size) {
   for (const dx of [11, 16, 21]) c.ellipse(dx * s, 13.5 * s, 1.6 * s, 1.6 * s, orange);
   return c.png();
 }
-writeFileSync(join(iconDir, "icon.png"), icon(256));
+/** macOS menu bar "template" icon: a black speech-bubble silhouette; macOS tints it for light/dark menu bars. */
+function templateIcon(size) {
+  const c = new Canvas(size, size);
+  const s = size / 16;
+  const ink = [0, 0, 0, 255];
+  const bx = 1.5 * s, by = 2.5 * s, bw = 13 * s, bh = 9 * s, br = 3 * s;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const lx = x + 0.5 - bx, ly = y + 0.5 - by;
+      if (lx < 0 || ly < 0 || lx > bw || ly > bh) continue;
+      const ddx = Math.max(br - lx, lx - (bw - br), 0);
+      const ddy = Math.max(br - ly, ly - (bh - br), 0);
+      if (ddx * ddx + ddy * ddy <= br * br) c.px(x, y, ink);
+    }
+  }
+  for (let j = 0; j < 3 * s; j++) for (let i = 0; i < 3 * s - j; i++) c.px(Math.round(4 * s + i), Math.round(by + bh + j), ink);
+  // knock out three dots
+  for (const dx of [5, 8, 11]) {
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const ex = x + 0.5 - dx * s, ey = y + 0.5 - 7 * s;
+      if (ex * ex + ey * ey <= (1.1 * s) ** 2) c.px(x, y, [0, 0, 0, 0]);
+    }
+  }
+  return c.png();
+}
+
+// 512 px so macOS builds get a sharp .icns (electron-builder needs at least 512×512).
+writeFileSync(join(iconDir, "icon.png"), icon(512));
+writeFileSync(join(iconDir, "trayTemplate.png"), templateIcon(16));
+writeFileSync(join(iconDir, "trayTemplate@2x.png"), templateIcon(32));
 writeFileSync(join(iconDir, "tray.png"), icon(32));
 writeFileSync(join(iconDir, "tray@2x.png"), icon(64));
 
