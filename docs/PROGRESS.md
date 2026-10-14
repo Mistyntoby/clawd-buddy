@@ -1,5 +1,13 @@
 # Progress log
 
+## 2026-10-14: Inline terminal input, optional chat window, pixel-terminal bubble
+
+- Clicking Clawd now opens a small terminal-style input right under his feet, inside his own window (so it moves with him). If he stands at the bottom of the screen, it appears just above his head instead. He stays put while it's open. Esc or clicking away with an empty input closes it.
+- He answers in his speech bubble, restyled as a tiny pixel terminal: VT323 font, dark screen, mint text with a `>` prompt, stepped pixel border and tail, a typed-out reveal (off with reduced motion), scrolling for long replies, and a `[claude]` / `[offline · scripted]` tag.
+- The CLAWD://TERMINAL window is optional: ▣ on the input, *Open chat window* in the right-click menu, or **Settings → Behavior → Chat style → Terminal window**. Commands typed inline answer in the bubble; "remember that…" requests open the window for the approval card.
+- The companion window gained a 40 px input strip below Clawd (click-through while closed); default placement and re-layouts keep his feet where they were.
+- Tests: 155 unit tests; 41 smoke checks on Windows (new: inline input opens under him and is focused, he stays put, the reply shows in the terminal bubble, Esc closes).
+
 ## 2026-10-14: Real Clawd, reliable drag and drop, terminal chat, features, macOS
 
 ### Clawd's artwork

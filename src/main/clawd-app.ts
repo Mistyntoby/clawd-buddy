@@ -3,10 +3,10 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { CompanionConfig, LinkKey, SettingsInit } from "../shared/api";
-import { defaultPosition, effectiveWorkArea, type Point, type Rng } from "../shared/movement";
+import { effectiveWorkArea, type Point, type Rng } from "../shared/movement";
 import { resolveFallback } from "../shared/sprite-manifest";
 import type { AiStatus, AnimationName, CapabilityInfo, ChatEvent, Settings } from "../shared/types";
-import type { CompanionCommand, SettingsSection } from "../shared/validation";
+import { extractRememberRequest, type CompanionCommand, type SettingsSection } from "../shared/validation";
 import { AssetProvider } from "./asset-provider";
 import { ChatService, type ChatHooks } from "./chat-service";
 import { findClaudeDesktopAsar, loadClaudeDesktopSprites } from "./clawd-desktop-sprites";
@@ -240,8 +240,11 @@ export class ClawdApp {
     const [cmdRaw, ...args] = input.trim().split(/\s+/);
     const cmd = (cmdRaw ?? "").toLowerCase();
     const arg = args.join(" ");
-    // Echo the command, then the result, as local chat lines.
-    const say = (text: string) => this.chat.notice({ role: "system", text }, input.trim());
+    // Echo the command, then the result, as local chat lines; without the chat window, Clawd says it too.
+    const say = (text: string) => {
+      this.chat.notice({ role: "system", text }, input.trim());
+      if (!this.chatWindowActive()) this.controller.say(text, "system", { sound: false });
+    };
     switch (cmd) {
       case "/help":
         return say(
@@ -305,6 +308,7 @@ export class ClawdApp {
       case "/clear":
         this.chat.clear();
         this.windows.sendChat("chat:cleared", null);
+        if (!this.chatWindowActive()) this.controller.say("Chat cleared.", "system", { sound: false });
         return;
       default:
         return say(`Unknown command ${cmd}. Type /help for the list.`);
@@ -316,7 +320,11 @@ export class ClawdApp {
     const display = screen.getPrimaryDisplay();
     const near = s.position ?? { x: display.workArea.x + display.workArea.width / 2, y: display.workArea.y + display.workArea.height / 2 };
     const layout = WindowManager.layoutFor(this.assets.info(), s.characterScale, near);
-    const start = s.position ?? defaultPosition(effectiveWorkArea(display.bounds, display.workArea), layout.window);
+    const area = effectiveWorkArea(display.bounds, display.workArea);
+    const start = s.position ?? {
+      x: area.x + area.width - 24 - (layout.body.x + layout.body.width),
+      y: area.y + area.height - (layout.body.y + layout.body.height),
+    };
     this.windows.createCompanion(layout, start, s.alwaysOnTop, () => {
       if (!this.quitting) {
         // The companion window should never disappear for good; recreate it.
@@ -425,10 +433,14 @@ export class ClawdApp {
         this.controller.poke();
         break;
       case "talk":
-        this.openChat(true);
-        break;
       case "open-chat":
-        this.openChat();
+        // Clicking Clawd: the inline input under him, or the terminal window, per Settings.
+        if (this.settings.get().chatMode === "inline") this.toggleInlineChat();
+        else this.openChat(true);
+        break;
+      case "open-chat-window":
+        this.windows.sendCompanion("companion:input", "close");
+        this.openChat(true);
         break;
       case "open-settings":
         this.windows.openSettings();
@@ -458,6 +470,35 @@ export class ClawdApp {
     }
   }
 
+  /** Shows or hides the small terminal input under Clawd and gives his window keyboard focus. */
+  toggleInlineChat(): void {
+    this.windows.sendCompanion("companion:input", "toggle");
+    this.windows.focusCompanion();
+  }
+
+  /** The chat window is in use (open and not minimized); otherwise command output goes to Clawd's bubble. */
+  private chatWindowActive(): boolean {
+    const w = this.windows.chat;
+    return !!w && !w.isDestroyed() && w.isVisible() && !w.isMinimized();
+  }
+
+  /** A message typed into the inline input under Clawd. */
+  sendInline(text: string): { ok: true } | { ok: false; error: string } {
+    if (extractRememberRequest(text)) {
+      // Saving to memory needs the approval card in the chat window.
+      this.openChat(true);
+      const win = this.windows.chat;
+      if (win) {
+        const send = () => win.webContents.send("chat:submit", text);
+        if (win.webContents.isLoading()) win.webContents.once("did-finish-load", send);
+        else send();
+      }
+      return { ok: true };
+    }
+    void this.sendChat(text);
+    return { ok: true };
+  }
+
   openChat(focusInput = false): void {
     const wasOpen = !!this.windows.chat && !this.windows.chat.isDestroyed();
     const win = this.windows.openChat(this.settings.get().chatAlwaysOnTop);
@@ -477,6 +518,7 @@ export class ClawdApp {
     const tricks = this.tricks();
     const menu = Menu.buildFromTemplate([
       { label: "Chat", click: () => this.runCommand("talk") },
+      { label: "Open chat window", click: () => this.runCommand("open-chat-window") },
       { label: "Tell a joke", click: () => this.runCommand("joke") },
       { label: "Fun fact", click: () => this.runCommand("fact") },
       { label: `Pet ${s.companionName}`, click: () => this.runCommand("pet") },
@@ -601,6 +643,10 @@ export class ClawdApp {
   private onChatEvent(event: ChatEvent): void {
     this.windows.sendChat("chat:event", event);
     if (event.type === "delta") this.controller.chatDelta(event.text);
+    // The inline input shows a tiny status too.
+    const state =
+      event.type === "start" ? (event.source === "claude" ? "thinking" : "ready") : event.type === "delta" ? "typing" : event.type === "notice" ? null : "ready";
+    if (state) this.windows.sendCompanion("companion:chat-state", state);
   }
 
   notifyAiStatusChanged(): void {

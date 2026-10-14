@@ -425,13 +425,13 @@ describe("dragging and dropping", () => {
 
 describe("speech helpers", () => {
   it("truncates long bubble text and points to the chat", () => {
-    const t = bubbleText("a".repeat(500));
-    expect(t.length).toBeLessThan(300);
+    const t = bubbleText("a".repeat(2000));
+    expect(t.length).toBeLessThan(920);
     expect(t).toMatch(/see chat/);
     expect(bubbleText(" short ")).toBe("short");
   });
   it("scales display time with length, within limits", () => {
     expect(speechDuration("hi")).toBe(4000);
-    expect(speechDuration("x".repeat(10_000))).toBe(16000);
+    expect(speechDuration("x".repeat(10_000))).toBe(30000);
   });
 });

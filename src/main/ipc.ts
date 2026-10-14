@@ -82,6 +82,16 @@ export function registerIpc(app: ClawdApp, rendererDir: string): void {
     app.controller.release();
   });
   listen("companion:context-menu", () => app.showContextMenu());
+  handle("companion:send", (p) => {
+    const v = validateChatMessage(p);
+    if (!v.ok) return { ok: false, error: v.error };
+    return app.sendInline(v.value);
+  });
+  listen("companion:cancel", () => app.chat.cancel());
+  listen("companion:input-open", (p) => {
+    const v = validateBoolean(p);
+    if (v.ok) app.controller.setTyping(v.value);
+  });
   listen("companion:command", (p) => {
     const v = validateCommand(p);
     if (v.ok) app.runCommand(v.value);

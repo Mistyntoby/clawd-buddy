@@ -71,6 +71,7 @@ const COMMANDS = [
   "tell-me-something",
   "what-can-you-do",
   "open-chat",
+  "open-chat-window",
   "open-settings",
   "hide",
   "poke",

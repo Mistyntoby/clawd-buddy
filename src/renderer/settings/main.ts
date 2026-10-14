@@ -254,7 +254,15 @@ function behavior(): HTMLElement {
     h(
       "div",
       { class: "group" },
-      row("Open chat on startup", null, toggle("openChatOnStartup")),
+      row(
+        "Chat style",
+        "Inline: clicking Clawd opens a small terminal input right under him and he answers in his speech bubble. Window: clicking him opens the CLAWD://TERMINAL window. Either way, the window is always available from the right-click menu.",
+        select("chatMode", [
+          ["inline", "Inline, under Clawd"],
+          ["window", "Terminal window"],
+        ]),
+      ),
+      row("Open chat window on startup", null, toggle("openChatOnStartup")),
       row("Keep chat window on top", null, toggle("chatAlwaysOnTop")),
       row("Keep chat history", "Remember the recent conversation (last 100 lines) on this computer between restarts.", toggle("keepChatHistory")),
       row("Read replies aloud", "Speak Clawd's chat replies with your system's voice.", toggle("readAloud")),

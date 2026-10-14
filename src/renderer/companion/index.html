@@ -14,11 +14,17 @@
       <div id="bubble" role="status" aria-live="polite" hidden>
         <div id="bubble-text"></div>
         <div id="bubble-source"></div>
+        <span class="tail" aria-hidden="true"><span></span></span>
       </div>
       <div id="character" role="img" aria-label="Clawd">
         <canvas id="sprite"></canvas>
         <div id="fallback-shape" hidden><span></span><span></span></div>
       </div>
+      <form id="inputbar" hidden autocomplete="off">
+        <span class="prompt" aria-hidden="true">&gt;</span>
+        <input id="say" type="text" maxlength="4000" spellcheck="false" aria-label="Message to Clawd" placeholder="say something · /help" />
+        <button type="button" id="expand" title="Open the chat window" aria-label="Open the chat window"><span></span></button>
+      </form>
     </div>
     <script src="main.js"></script>
   </body>

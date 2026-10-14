@@ -32,9 +32,12 @@ describe("crisp pixel layout", () => {
       expect(l.pixelScale * scaleFactor).toBeCloseTo(l.devicePixelsPerArtPixel, 9);
     }
   });
-  it("puts the character bottom-centered and the body inside it", () => {
+  it("centers the character, with the bubble area above and the input slot right under his feet", () => {
     const l = companionLayout({ ...base, scaleFactor: 1 });
-    expect(l.character.y + l.character.height).toBe(l.window.height);
+    expect(l.character.y + l.character.height).toBeLessThan(l.window.height);
+    expect(l.input.y).toBe(l.body.y + l.body.height + 6);
+    expect(l.input.y + l.input.height).toBeLessThanOrEqual(l.window.height);
+    expect(l.input.width).toBe(l.window.width - 16);
     expect(Math.abs(l.character.x * 2 + l.character.width - l.window.width)).toBeLessThanOrEqual(1);
     expect(l.body).toEqual({ x: l.character.x + 42, y: l.character.y + 48, width: 48, height: 48 });
   });

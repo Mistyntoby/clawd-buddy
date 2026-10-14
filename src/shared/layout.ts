@@ -3,10 +3,11 @@
  * Clawd on screen) and the companion renderer (where to draw). Both sides must
  * agree exactly, so it lives in one pure function.
  *
- * The character is drawn bottom-centered in a transparent window with room
- * above it for the speech bubble. There is no label or other decoration.
+ * The character is drawn horizontally centered in a transparent window, with
+ * room above it for the speech bubble and a strip below it for the inline chat
+ * input. There is no label or other decoration.
  */
-import { BUBBLE_AREA_HEIGHT, COMPANION_MIN_WIDTH } from "./constants";
+import { BUBBLE_AREA_HEIGHT, COMPANION_MIN_WIDTH, INPUT_AREA_HEIGHT } from "./constants";
 import type { Rect, Size } from "./movement";
 
 export interface LayoutInput {
@@ -30,23 +31,27 @@ export interface CompanionLayout {
   character: Rect;
   /** Where Clawd's standing body sits inside the window (CSS px). */
   body: Rect;
+  /** The inline chat input's slot, right under Clawd's feet (CSS px). */
+  input: Rect;
 }
 
-export function companionLayout(input: LayoutInput): CompanionLayout {
-  const sf = input.scaleFactor > 0 ? input.scaleFactor : 1;
-  const device = Math.max(1, Math.round(input.scale * sf));
+export function companionLayout(args: LayoutInput): CompanionLayout {
+  const sf = args.scaleFactor > 0 ? args.scaleFactor : 1;
+  const device = Math.max(1, Math.round(args.scale * sf));
   const pixelScale = device / sf;
-  const cw = Math.round(input.frameWidth * pixelScale);
-  const ch = Math.round(input.frameHeight * pixelScale);
+  const cw = Math.round(args.frameWidth * pixelScale);
+  const ch = Math.round(args.frameHeight * pixelScale);
   const width = Math.max(COMPANION_MIN_WIDTH, cw + 40);
-  const height = BUBBLE_AREA_HEIGHT + ch;
-  const character = { x: Math.round((width - cw) / 2), y: height - ch, width: cw, height: ch };
-  const [bx, by, bw, bh] = input.bodyBox;
+  const height = BUBBLE_AREA_HEIGHT + ch + INPUT_AREA_HEIGHT;
+  const character = { x: Math.round((width - cw) / 2), y: BUBBLE_AREA_HEIGHT, width: cw, height: ch };
+  const [bx, by, bw, bh] = args.bodyBox;
   const body = {
     x: character.x + Math.round(bx * pixelScale),
     y: character.y + Math.round(by * pixelScale),
     width: Math.round(bw * pixelScale),
     height: Math.round(bh * pixelScale),
   };
-  return { window: { width, height }, pixelScale, devicePixelsPerArtPixel: device, character, body };
+  const feet = body.y + body.height;
+  const input = { x: 8, y: feet + 6, width: width - 16, height: INPUT_AREA_HEIGHT - 8 };
+  return { window: { width, height }, pixelScale, devicePixelsPerArtPixel: device, character, body, input };
 }

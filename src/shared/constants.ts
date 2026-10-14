@@ -29,9 +29,11 @@ export const MAX_USER_MESSAGE_CHARS = 4000;
 export const MAX_MEMORY_ITEMS = 50;
 export const MAX_MEMORY_ITEM_CHARS = 300;
 
-/** Sprite base frame size is defined per pack; the window adds room for the speech bubble. */
-export const BUBBLE_AREA_HEIGHT = 150;
-export const COMPANION_MIN_WIDTH = 280;
+/** Sprite base frame size is defined per pack; the window adds room for the speech bubble above and the chat input below. */
+export const BUBBLE_AREA_HEIGHT = 190;
+export const COMPANION_MIN_WIDTH = 320;
+/** Height of the inline terminal input under Clawd (transparent and click-through while closed). */
+export const INPUT_AREA_HEIGHT = 40;
 
 export const MOVEMENT_SPEEDS = {
   slow: 40,

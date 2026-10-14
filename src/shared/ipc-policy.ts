@@ -13,6 +13,9 @@ export const IPC_POLICY: Readonly<Record<string, readonly Role[]>> = Object.free
   "companion:drag-move": ["companion"],
   "companion:release": ["companion"],
   "companion:context-menu": ["companion"],
+  "companion:send": ["companion"],
+  "companion:cancel": ["companion"],
+  "companion:input-open": ["companion"],
   "companion:command": ["companion"],
   "companion:dismiss-speech": ["companion"],
 

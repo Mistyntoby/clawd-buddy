@@ -29,6 +29,9 @@ export type Personality = "playful" | "calm" | "concise";
 /** How often Clawd makes unprompted remarks. */
 export type IdleChatter = "off" | "quiet" | "chatty";
 
+/** Where you type to Clawd: a small input right under him, or the separate terminal window. */
+export type ChatMode = "inline" | "window";
+
 /** How lively idle behavior and squash-and-stretch are. */
 export type AnimationIntensity = "calm" | "normal" | "lively";
 
@@ -52,6 +55,7 @@ export interface Settings {
   /** Integer pixel scale for the sprite (2–6). */
   characterScale: number;
   idleChatter: IdleChatter;
+  chatMode: ChatMode;
   animationIntensity: AnimationIntensity;
   /** Keep the recent conversation on this computer between restarts. */
   keepChatHistory: boolean;

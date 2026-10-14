@@ -13,6 +13,8 @@ const bubble = $("#bubble");
 const bubbleText = $("#bubble-text");
 const bubbleSource = $("#bubble-source");
 const fallbackShape = $("#fallback-shape");
+const inputbar = $("#inputbar") as HTMLFormElement;
+const say = $("#say") as HTMLInputElement;
 
 const clawd = api();
 let config: CompanionConfig = { scale: 3, reducedMotion: false, animationIntensity: "normal", soundEnabled: true, name: "Clawd" };
@@ -45,6 +47,7 @@ function applyLayout(next: CompanionLayout): void {
   character.style.width = `${c.width}px`;
   character.style.height = `${c.height}px`;
   player.setLayout(next);
+  placeInput();
   placeBubble();
 }
 
@@ -53,23 +56,48 @@ function applyLayout(next: CompanionLayout): void {
  * (the transparent margins of the window may hang off a screen edge) and
  * points its tail at Clawd.
  */
-function placeBubble(): void {
-  if (!layout) return;
+/** The part of the window that is on screen (window coordinates). */
+function visibleArea(): { left: number; right: number; top: number; bottom: number } {
   const W = window.innerWidth;
   const s = window.screen as Screen & { availLeft?: number; availTop?: number };
   const availLeft = s.availLeft ?? 0;
   const availTop = s.availTop ?? 0;
-  const visLeft = Math.max(0, availLeft - window.screenX);
-  const visRight = Math.min(W, availLeft + s.availWidth - window.screenX);
-  const visTop = Math.max(0, availTop - window.screenY);
+  return {
+    left: Math.max(0, availLeft - window.screenX),
+    right: Math.min(W, availLeft + s.availWidth - window.screenX),
+    top: Math.max(0, availTop - window.screenY),
+    bottom: Math.min(window.innerHeight, availTop + s.availHeight - window.screenY),
+  };
+}
+
+/** True when the inline input sits above Clawd (no room under him, e.g. he stands on the taskbar). */
+let inputAbove = false;
+
+/** Puts the inline input right under Clawd's feet, or just above his head if that would be off screen. */
+function placeInput(): void {
+  if (!layout) return;
+  const vis = visibleArea();
+  const r = layout.input;
+  inputAbove = r.y + r.height > vis.bottom - 2;
+  const top = inputAbove ? Math.max(vis.top + 4, layout.body.y - r.height - 10) : r.y;
+  inputbar.style.left = `${Math.max(r.x, vis.left + 6)}px`;
+  inputbar.style.width = `${Math.min(r.width, vis.right - vis.left - 12)}px`;
+  inputbar.style.top = `${top}px`;
+  inputbar.style.height = `${r.height}px`;
+}
+
+function placeBubble(): void {
+  if (!layout) return;
+  const W = window.innerWidth;
+  const vis = visibleArea();
   const c = layout.character;
-  bubble.style.left = `${visLeft + 8}px`;
-  bubble.style.right = `${Math.max(0, W - visRight) + 8}px`;
-  bubble.style.bottom = `${window.innerHeight - c.y + 4}px`;
-  const available = c.y - 4 - visTop - 6;
-  const lineHeight = parseFloat(getComputedStyle(bubbleText).lineHeight) || 19.6;
-  const chrome = 9 + 8 + 4 + 18; // padding, border, source line
-  bubbleText.style.webkitLineClamp = String(Math.max(2, Math.floor((available - chrome) / lineHeight)));
+  // Above Clawd's frame; above the input instead when the input is shown over his head.
+  const anchorTop = !inputbar.hidden && inputAbove ? inputbar.offsetTop - 8 : c.y + 4;
+  bubble.style.left = `${vis.left + 8}px`;
+  bubble.style.right = `${Math.max(0, W - vis.right) + 8}px`;
+  bubble.style.bottom = `${window.innerHeight - anchorTop + 12}px`;
+  const chrome = 6 + 6 + 6 + (bubbleSource.textContent ? 18 : 0); // padding, border, source line
+  bubbleText.style.maxHeight = `${Math.max(40, anchorTop - 12 - vis.top - 8 - chrome)}px`;
   // Point the tail at the middle of Clawd's body.
   const r = bubble.getBoundingClientRect();
   const bodyCenter = layout.body.x + layout.body.width / 2;
@@ -126,6 +154,11 @@ function applyView(next: CompanionView): void {
   document.body.dataset.state = next.animation;
   document.body.dataset.playing = player.playing ?? "";
   if (isNewState) motionFor(prev, next.animation);
+  // After a drop the window may be somewhere new: re-check whether the input fits under Clawd.
+  if (!inputbar.hidden && (next.animation === "land" || next.animation === "idle")) {
+    placeInput();
+    placeBubble();
+  }
 }
 
 let lastFrameTime = performance.now();
@@ -141,17 +174,104 @@ requestAnimationFrame(frame);
 
 // ---- speech -----------------------------------------------------------------------------
 
+let revealTimer: ReturnType<typeof setInterval> | null = null;
+
 function applySpeech(speech: SpeechPayload | null): void {
+  if (revealTimer) clearInterval(revealTimer);
+  revealTimer = null;
   if (!speech) {
     bubble.hidden = true;
     bubble.classList.remove("streaming");
     return;
   }
-  bubbleText.textContent = speech.text;
-  bubbleSource.textContent = speech.source === "claude" ? "via Claude" : speech.source === "offline" ? "offline mode" : "";
+  const wasVisible = !bubble.hidden;
+  bubbleSource.textContent = speech.source === "claude" ? "[claude]" : speech.source === "offline" ? "[offline · scripted]" : "";
   bubble.classList.toggle("streaming", !!speech.streaming);
+  bubble.classList.toggle("system", speech.source === "system");
   bubble.hidden = false;
+  if (speech.streaming || reducedMotion() || (wasVisible && bubbleText.textContent && speech.text.startsWith(bubbleText.textContent))) {
+    // Streaming text arrives piece by piece already; just show it and follow the end.
+    bubbleText.textContent = speech.text;
+    placeBubble();
+    bubbleText.scrollTop = bubbleText.scrollHeight;
+    return;
+  }
+  // A finished line types out like a terminal (about half a second, however long it is).
+  const full = speech.text;
+  const step = Math.max(1, Math.ceil(full.length / 30));
+  let i = 0;
+  bubbleText.textContent = "";
+  bubble.classList.add("streaming");
   placeBubble();
+  revealTimer = setInterval(() => {
+    i = Math.min(full.length, i + step);
+    bubbleText.textContent = full.slice(0, i);
+    if (i === step) placeBubble();
+    if (i >= full.length) {
+      if (revealTimer) clearInterval(revealTimer);
+      revealTimer = null;
+      bubble.classList.remove("streaming");
+      placeBubble();
+    }
+  }, 16);
+}
+
+// ---- inline chat input ----------------------------------------------------------------------
+
+let chatBusy = false;
+
+function openInput(): void {
+  if (inputbar.hidden) clawd.companion.inputOpen(true);
+  inputbar.hidden = false;
+  placeInput();
+  placeBubble();
+  say.focus();
+}
+
+function closeInput(): void {
+  if (!inputbar.hidden) clawd.companion.inputOpen(false);
+  inputbar.hidden = true;
+  say.blur();
+  placeBubble();
+}
+
+inputbar.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = say.value.trim();
+  if (!text || chatBusy) return;
+  say.value = "";
+  void clawd.companion.send(text);
+});
+say.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    e.stopPropagation();
+    if (chatBusy) clawd.companion.cancel();
+    else closeInput();
+  }
+});
+say.addEventListener("focus", () => inputbar.classList.add("focused"));
+say.addEventListener("blur", () => {
+  inputbar.classList.remove("focused");
+  // Clicking somewhere else closes an empty input; one with text stays until Esc.
+  setTimeout(() => {
+    if (!say.value.trim() && document.activeElement !== say && !inputbar.hidden && !chatBusy) closeInput();
+  }, 150);
+});
+$("#expand").addEventListener("click", () => {
+  closeInput();
+  clawd.companion.command("open-chat-window");
+});
+
+function setChatState(state: "ready" | "thinking" | "typing"): void {
+  chatBusy = state !== "ready";
+  inputbar.classList.toggle("busy", chatBusy);
+  say.placeholder = state === "thinking" ? "THINKING... (esc to stop)" : state === "typing" ? "TYPING... (esc to stop)" : "say something · /help";
+}
+
+function overInput(x: number, y: number): boolean {
+  if (inputbar.hidden) return false;
+  const r = inputbar.getBoundingClientRect();
+  return x >= r.left - 3 && x <= r.right + 3 && y >= r.top - 3 && y <= r.bottom + 3;
 }
 
 // ---- pointer handling: click-through except over Clawd's pixels and the bubble -------------
@@ -198,7 +318,7 @@ function trackRub(e: MouseEvent): void {
 window.addEventListener("mousemove", (e) => {
   if (press) return;
   const onClawd = overCharacter(e.clientX, e.clientY);
-  setInteractive(onClawd || overBubble(e.clientX, e.clientY));
+  setInteractive(onClawd || overBubble(e.clientX, e.clientY) || overInput(e.clientX, e.clientY));
   if (onClawd) trackRub(e);
 });
 document.documentElement.addEventListener("mouseleave", () => {
@@ -295,6 +415,7 @@ bubble.addEventListener("contextmenu", (e) => {
 
 // Keyboard access when the window happens to have focus.
 window.addEventListener("keydown", (e) => {
+  if (document.activeElement === say) return;
   if (e.key === "Enter") clawd.companion.command("open-chat");
   if (e.key === "Escape") clawd.companion.dismissSpeech();
   if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) clawd.companion.contextMenu();
@@ -304,6 +425,12 @@ window.addEventListener("keydown", (e) => {
 
 clawd.companion.onView(applyView);
 clawd.companion.onSpeech(applySpeech);
+clawd.companion.onInput((action) => {
+  if (action === "open" || (action === "toggle" && inputbar.hidden)) openInput();
+  else if (action === "close" || !say.value.trim()) closeInput();
+  else say.focus();
+});
+clawd.companion.onChatState(setChatState);
 clawd.companion.onSound((s) => {
   if (config.soundEnabled) playSound(s);
 });

@@ -64,7 +64,7 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
     // Nothing but the character (and, when speaking, the bubble) is drawn: no label, caption, or name under Clawd.
     const stray = await js(
       companion,
-      "[...document.body.querySelectorAll('*')].filter((el) => !el.closest('#bubble') && el.children.length === 0 && (el.textContent ?? '').trim() !== '').map((el) => el.id || el.tagName)",
+      "[...document.body.querySelectorAll('*')].filter((el) => !el.closest('#bubble') && el.getClientRects().length > 0 && el.children.length === 0 && (el.textContent ?? '').trim() !== '').map((el) => el.id || el.tagName)",
     );
     check("no label or text around the character", Array.isArray(stray) && stray.length === 0, JSON.stringify(stray));
     const crisp = await js(
@@ -214,8 +214,37 @@ export async function runSmokeTest(clawd: ClawdApp, dir: string): Promise<void> 
       port.cursorPoint = realCursor;
     }
 
-    // Chat (offline mode, no API key in the smoke profile).
-    clawd.openChat();
+    // Inline chat: clicking Clawd opens a small terminal input under him; replies come in his pixel-terminal bubble.
+    {
+      clawd.controller.dismissSpeech();
+      clawd.runCommand("open-chat");
+      const opened = await waitFor(async () => (await js(companion, "!document.querySelector('#inputbar').hidden")) === true, 3_000);
+      const geo = await js(
+        companion,
+        "(() => { const i = document.querySelector('#inputbar').getBoundingClientRect(); const c = document.querySelector('#character').getBoundingClientRect(); return { inputTop: i.top, inputH: i.height, charBottom: c.bottom, charTop: c.top, focused: document.activeElement === document.querySelector('#say') }; })()",
+      );
+      check("click opens the inline terminal input next to Clawd, focused", opened && geo.inputH > 20 && geo.inputH < 40 && geo.focused, JSON.stringify(geo));
+      check("Clawd stays put while the input is open", (() => {
+        const before = clawd.windows.getPosition();
+        clawd.controller.machine.send("RESET");
+        return clawd.controller.state === "idle" && JSON.stringify(clawd.windows.getPosition()) === JSON.stringify(before);
+      })());
+      await js(companion, "(() => { const i = document.querySelector('#say'); i.value = 'hello'; document.querySelector('#inputbar').requestSubmit(); })()");
+      const answered = await waitFor(async () => (await js(companion, "!document.querySelector('#bubble').hidden && document.querySelector('#bubble-text').textContent.length > 3")) === true, 4_000);
+      await wait(800);
+      const style = await js(companion, "(() => { const b = getComputedStyle(document.querySelector('#bubble')); return { font: b.fontFamily, bg: b.backgroundColor, radius: b.borderRadius, text: document.querySelector('#bubble-text').textContent, src: document.querySelector('#bubble-source').textContent }; })()");
+      check(
+        "inline reply shows in a pixel-terminal bubble (VT323, dark, square corners, labeled offline)",
+        answered && String(style.font).includes("VT323") && String(style.radius) === "0px" && /offline/i.test(String(style.src)),
+        JSON.stringify(style).slice(0, 200),
+      );
+      await capture(companion, path.join(dir, "companion-inline.png"));
+      await js(companion, "document.querySelector('#say').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+      check("Esc closes the inline input", await waitFor(async () => (await js(companion, "document.querySelector('#inputbar').hidden")) === true, 2_000));
+    }
+
+    // Chat window (offline mode, no API key in the smoke profile).
+    clawd.runCommand("open-chat-window");
     const chat = clawd.windows.chat;
     check("chat window opens", !!chat);
     if (chat) {

@@ -72,9 +72,10 @@ export interface ControllerSettings {
 }
 
 const SPEECH_MIN_MS = 4000;
-const SPEECH_MAX_MS = 16000;
-const SPEECH_MS_PER_CHAR = 55;
-const BUBBLE_MAX_CHARS = 280;
+const SPEECH_MAX_MS = 30000;
+const SPEECH_MS_PER_CHAR = 60;
+/** The bubble scrolls, so it can hold a fair amount; the full text is always in the chat history. */
+const BUBBLE_MAX_CHARS = 900;
 const SLEEP_POLL_MS = 5000;
 
 /** Display duration scaled to text length so long replies can be read. */
@@ -143,6 +144,8 @@ export class CompanionController {
   /** Set by perform(): the variant the next state change must use. */
   private forcedVariant: number | null = null;
   private lastPet = -Infinity;
+  /** The inline chat input is open: Clawd stays put so he doesn't walk away while you type. */
+  private typing = false;
   private variantDurationMs: number | null = null;
 
   constructor(
@@ -258,6 +261,18 @@ export class CompanionController {
     this.lastPet = t;
     this.port.sendSound("pop");
     return true;
+  }
+
+  /** The inline input under Clawd opened or closed. While it's open he doesn't wander or nap. */
+  setTyping(on: boolean): void {
+    this.typing = on;
+    if (on) {
+      this.noteInteraction();
+      this.legsLeft = 0;
+      if (this.machine.state === "walk") this.machine.send("ARRIVED");
+    } else if (this.machine.state === "idle") {
+      this.scheduleIdle();
+    }
   }
 
   /** Lightbulb moment, e.g. for a fun fact. */
@@ -587,6 +602,12 @@ export class CompanionController {
     this.stateTimer = null;
     if (this.paused || this.grabbed || this.machine.state !== "idle" || !this.port.isVisible()) {
       this.scheduleIdle();
+      return;
+    }
+    if (this.typing) {
+      // Stay put while the inline input is open; small idle variations are fine.
+      if (this.rng() < MOTION.idle.variation) this.machine.send("IDLE_VARIATION");
+      else this.scheduleIdle();
       return;
     }
     if (this.legsLeft > 0 && this.settings.wandering) {

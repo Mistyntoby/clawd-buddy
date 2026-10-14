@@ -325,6 +325,10 @@ clawd.chat.onEvent(onEvent);
 clawd.chat.onStatus(() => void refreshStatus());
 clawd.chat.onFocusInput(() => input.focus());
 clawd.chat.onCleared(resetScreen);
+clawd.chat.onSubmit((text) => {
+  input.value = text;
+  void submit();
+});
 
 void (async () => {
   await refreshStatus();

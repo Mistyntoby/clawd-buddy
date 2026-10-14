@@ -134,11 +134,19 @@ export class WindowManager implements CompanionPort {
       return;
     }
     const old = win.getBounds();
-    // Keep the character's feet in place: anchor bottom-center.
-    const x = Math.round(old.x + (old.width - size.width) / 2);
-    const y = old.y + old.height - size.height;
+    // Keep Clawd's feet where they are: anchor on the bottom-center of his body.
+    const x = Math.round(old.x + prev.body.x + prev.body.width / 2 - (layout.body.x + layout.body.width / 2));
+    const y = old.y + prev.body.y + prev.body.height - (layout.body.y + layout.body.height);
     win.setBounds({ x, y, width: size.width, height: size.height });
     this.sendToCompanion("companion:layout", layout);
+  }
+
+  /** Gives the companion window keyboard focus (for the inline chat input). */
+  focusCompanion(): void {
+    const win = this.companion;
+    if (!win || win.isDestroyed()) return;
+    win.focus();
+    win.webContents.focus();
   }
 
   /** Whether the companion window currently accepts mouse input (false = click-through). */

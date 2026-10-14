@@ -64,6 +64,15 @@ export interface ClawdApi {
     /** Pointer released or cancelled (drop, or end of a click). */
     release(): void;
     contextMenu(): void;
+    /** Sends a message typed into the inline input under Clawd. */
+    send(text: string): Promise<{ ok: true } | { ok: false; error: string }>;
+    /** Stops the reply in progress. */
+    cancel(): void;
+    /** The inline input opened/closed (Clawd stays put while it's open). */
+    inputOpen(open: boolean): void;
+    /** "toggle" | "open" | "close" the inline input. */
+    onInput(cb: (action: "toggle" | "open" | "close") => void): Unsubscribe;
+    onChatState(cb: (state: "ready" | "thinking" | "typing") => void): Unsubscribe;
     command(cmd: CompanionCommand): void;
     dismissSpeech(): void;
     onView(cb: (view: CompanionView) => void): Unsubscribe;
@@ -83,6 +92,8 @@ export interface ClawdApi {
     onStatus(cb: () => void): Unsubscribe;
     onFocusInput(cb: () => void): Unsubscribe;
     onCleared(cb: () => void): Unsubscribe;
+    /** Submit this text as if typed (used to continue a "remember that…" request from the inline input). */
+    onSubmit(cb: (text: string) => void): Unsubscribe;
     /** Minimize or close this (frameless) chat window. */
     windowControl(action: "minimize" | "close"): void;
   };

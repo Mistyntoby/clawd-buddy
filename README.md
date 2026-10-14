@@ -14,7 +14,8 @@ An unofficial desktop companion in the spirit of BonziBuddy and Clippy, starring
 ## What he does
 
 - **Lives on your desktop.** A transparent, frameless window that stays on top (optional). Only Clawd's visible pixels catch the mouse; everything around him clicks through to the apps underneath. No label or text under him.
-- **Click him to chat.** A compact, pixel-art terminal (`CLAWD://TERMINAL`) opens next to him. Enter sends, Shift+Enter adds a line, Esc minimizes. While Claude answers he thinks, then types on his laptop as the reply streams in.
+- **Click him to chat.** A small terminal-style input line appears right under him (above his head if he's standing on the taskbar). Type, press Enter, and he answers in a pixel-terminal speech bubble that types out like an old computer; long replies scroll. Esc closes it. While Claude answers he thinks, then types on his laptop as the reply streams in, and he stays put while you're typing.
+- **Optional chat window.** The full `CLAWD://TERMINAL` window (history, memory approvals) opens from the ▣ button on the input, the right-click menu, or by setting **Chat style** to *Terminal window* in Settings.
 - **Pick him up.** Drag him anywhere: he crouches, gets lifted into his carried pose, follows the pointer at your display's full refresh rate, and stays **exactly** where you let go, with a little squash-and-bounce landing. Wandering pauses while you hold him.
 - **Personality.** Wanders in short trips with pauses, looks around, sways, does a hula, has lightbulb moments, naps (meditates) when you're away, and waves hello. Rub the pointer over him to pet him.
 - **Quick actions** (right-click): Chat, Tell a joke, Fun fact, Pet, Do a trick, Reminders, Wander, speed, Sounds, Settings, Hide, Quit.

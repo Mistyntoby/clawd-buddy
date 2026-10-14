@@ -61,6 +61,27 @@ body {
   display: none;
 }
 
+/*
+ * Clawd's speech bubble and inline input: tiny pixel terminals.
+ * Hard edges come from stepped box-shadows (one "pixel" = 3px), never from
+ * rounded corners or gradients. Text uses the bundled VT323 terminal font.
+ */
+@font-face {
+  font-family: "VT323";
+  src: url("../fonts/VT323-Regular.ttf") format("truetype");
+  font-display: block;
+}
+
+:root {
+  --px: 3px;
+  --term-bg: #070907;
+  --term-edge: #4a5345;
+  --term-text: #8df0b0;
+  --term-dim: #5f8c6c;
+  --term-amber: #ffcf6e;
+  --term-font: "VT323", "Cascadia Mono", "Consolas", "Menlo", monospace;
+}
+
 #bubble {
   position: absolute;
   left: 8px;
@@ -69,67 +90,183 @@ body {
   margin: 0 auto;
   width: max-content;
   max-width: calc(100% - 16px);
-  padding: 9px 12px 8px;
-  border-radius: 14px;
-  background: #fffaf3;
-  color: #2a2119;
-  border: 2px solid #d97757;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  padding: 5px 10px 6px;
+  background: var(--term-bg);
+  color: var(--term-text);
+  font: 19px/1.12 var(--term-font);
+  -webkit-font-smoothing: none;
+  /* A 1-pixel border with notched corners, plus a hard drop shadow. */
+  box-shadow:
+    0 calc(var(--px) * -1) 0 0 var(--term-edge),
+    0 var(--px) 0 0 var(--term-edge),
+    calc(var(--px) * -1) 0 0 0 var(--term-edge),
+    var(--px) 0 0 0 var(--term-edge),
+    var(--px) calc(var(--px) * 2) 0 0 rgba(0, 0, 0, 0.35),
+    calc(var(--px) * 2) var(--px) 0 0 rgba(0, 0, 0, 0.35);
   cursor: pointer;
   opacity: 1;
-  transform: translateY(0) scale(1);
-  transform-origin: var(--tail-x) 100%;
-  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
+  transform: translateY(0);
+  transition:
+    opacity 0.12s steps(3),
+    transform 0.12s steps(3);
   overflow-wrap: anywhere;
-}
-#bubble::after {
-  content: "";
-  position: absolute;
-  bottom: -9px;
-  left: var(--tail-x);
-  margin-left: -8px;
-  width: 14px;
-  height: 14px;
-  background: #fffaf3;
-  border-right: 2px solid #d97757;
-  border-bottom: 2px solid #d97757;
-  transform: rotate(45deg);
-  border-bottom-right-radius: 3px;
 }
 #bubble[hidden] {
   display: block;
   opacity: 0;
-  transform: translateY(6px) scale(0.92);
+  transform: translateY(6px);
   pointer-events: none;
-  transition: opacity 0.14s ease, transform 0.14s ease;
 }
-
 @media (prefers-reduced-motion: reduce) {
   #bubble,
   #bubble[hidden] {
-    transition: opacity 0.12s linear;
+    transition: opacity 0.1s linear;
     transform: none;
   }
 }
+
 #bubble-text {
   white-space: pre-wrap;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 6;
-  overflow: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--term-edge) var(--term-bg);
+}
+#bubble-text::-webkit-scrollbar {
+  width: 6px;
+}
+#bubble-text::-webkit-scrollbar-thumb {
+  background: var(--term-edge);
+}
+#bubble-text::-webkit-scrollbar-track {
+  background: var(--term-bg);
+}
+#bubble-text::before {
+  content: "> ";
+  color: var(--term-dim);
+}
+#bubble.system #bubble-text {
+  color: var(--term-amber);
+}
+#bubble.system #bubble-text::before {
+  content: "* ";
 }
 #bubble.streaming #bubble-text::after {
-  content: "▍";
-  color: #d97757;
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.9em;
+  margin-left: 2px;
+  vertical-align: -0.1em;
+  background: currentColor;
   animation: blink 1s steps(2) infinite;
 }
 #bubble-source {
-  margin-top: 3px;
-  font-size: 10.5px;
-  color: #8a7a6b;
+  margin-top: 2px;
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--term-dim);
 }
 #bubble-source:empty {
   display: none;
+}
+
+/* Stepped pixel tail pointing down at Clawd. */
+#bubble .tail {
+  position: absolute;
+  bottom: -12px;
+  left: var(--tail-x);
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: var(--term-edge);
+  clip-path: polygon(0 0, 100% 0, 100% 25%, 75% 25%, 75% 50%, 50% 50%, 50% 75%, 25% 75%, 25% 100%, 0 100%);
+}
+#bubble .tail span {
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  background: var(--term-bg);
+  clip-path: polygon(0 0, 100% 0, 100% 50%, 50% 50%, 50% 100%, 0 100%);
+}
+
+/* ---- inline input under Clawd ---- */
+#inputbar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 4px 0 8px;
+  background: var(--term-bg);
+  box-shadow:
+    0 calc(var(--px) * -1) 0 0 var(--term-edge),
+    0 var(--px) 0 0 var(--term-edge),
+    calc(var(--px) * -1) 0 0 0 var(--term-edge),
+    var(--px) 0 0 0 var(--term-edge),
+    var(--px) calc(var(--px) * 2) 0 0 rgba(0, 0, 0, 0.35);
+  font: 20px/1 var(--term-font);
+}
+#inputbar[hidden] {
+  display: none;
+}
+#inputbar.focused {
+  box-shadow:
+    0 calc(var(--px) * -1) 0 0 var(--term-dim),
+    0 var(--px) 0 0 var(--term-dim),
+    calc(var(--px) * -1) 0 0 0 var(--term-dim),
+    var(--px) 0 0 0 var(--term-dim),
+    var(--px) calc(var(--px) * 2) 0 0 rgba(0, 0, 0, 0.35);
+}
+#inputbar .prompt {
+  color: var(--term-text);
+}
+#inputbar.busy .prompt {
+  animation: blink 0.8s steps(2) infinite;
+}
+#say {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 2px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--term-amber);
+  font: 20px/1 var(--term-font);
+  caret-color: var(--term-amber);
+  caret-shape: block;
+}
+#say::placeholder {
+  color: #3e5a46;
+}
+#expand {
+  flex: none;
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: var(--term-edge);
+  cursor: pointer;
+  box-shadow:
+    inset 2px 2px 0 #6c7966,
+    inset -2px -2px 0 #2a2f27;
+}
+#expand span {
+  display: block;
+  width: 10px;
+  height: 8px;
+  margin: 0 auto;
+  border: 2px solid var(--term-text);
+  border-top-width: 4px;
+}
+#expand:hover {
+  background: #5a6554;
+}
+#expand:focus-visible {
+  outline: 2px solid var(--term-amber);
 }
 
 @keyframes blink {

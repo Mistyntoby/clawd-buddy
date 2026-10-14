@@ -14,7 +14,7 @@ Start from a clean profile: quit the app and rename the data folder (Windows `%A
 2. **Clawd import.** Settings → Character & sprites → *Import Clawd from the Claude app* (with the Claude desktop app installed). The stand-in turns into Clawd immediately; the pack shows "from your Claude app". Without the Claude app, a clear "wasn't found" message.
 3. **No label.** Nothing is drawn under or around the character except speech bubbles.
 4. **Click-through.** Clicking the empty space next to Clawd reaches the window underneath; only his visible pixels are clickable.
-5. **Click.** Opens the CLAWD://TERMINAL chat beside him (he waves). Clicking again focuses it.
+5. **Click.** A small terminal input appears right under him, focused (above his head if he stands on the taskbar). Type, Enter: he answers in the pixel-terminal bubble (typed out; long replies scroll). He doesn't wander while it's open. Esc or clicking elsewhere with an empty input closes it; clicking him again toggles it. The ▣ button opens the chat window. With *Chat style: Terminal window*, a click opens the window instead.
 6. **Petting.** Rub the pointer quickly back and forth over him (without pressing): a happy reaction and a short bubble; rubbing on and on doesn't spam reactions (cooldown).
 7. **Drag and drop** (mouse, then trackpad):
    - Press and move: a short crouch, then the arms-up carried pose; he follows the pointer smoothly without lag or stutter, also when moving fast and on a high-refresh display.
@@ -26,7 +26,7 @@ Start from a clean profile: quit the app and rename the data folder (Windows `%A
    - Drop partly off a screen edge: only nudged far enough to keep his body visible.
    - Second monitor (including one left of or above the main one, and one with different scaling): drag across, drop, quit, relaunch; he reappears at the same spot.
 8. **Wandering.** He walks in short, deliberate trips (smooth start and stop, pauses between legs) and never while held. Unchecking *Wander around* stops all autonomous movement.
-9. **Chat terminal.** Enter sends, Shift+Enter adds a line, Esc minimizes (or stops a reply), `_` minimizes, `X` closes (Clawd stays); dragging the title bar moves the terminal. The status shows READY/OFFLINE, THINKING..., TYPING..., ERROR. Text is sharp at 100%, 125%, 150% scaling and on Retina.
+9. **Chat window (optional).** Right-click → *Open chat window*. Enter sends, Shift+Enter adds a line, Esc minimizes (or stops a reply), `_` minimizes, `X` closes (Clawd stays); dragging the title bar moves the terminal. The status shows READY/OFFLINE, THINKING..., TYPING..., ERROR. Text is sharp at 100%, 125%, 150% scaling and on Retina.
 10. **Commands.** `/help`, `/joke` (setup, pause, punchline, happy reaction), `/fact` (lightbulb), `/pet`, `/trick` and `/trick hula`, `/remind 1m test`, `/reminders`, `/done 1`, `/forget 1`, `/search crabs` (opens the browser only then), `/clear`.
 11. **Reminders.** Add one for 1 minute in Settings → Reminders: when due, Clawd shows a bubble and waves (or, if hidden, a system notification). Mark it *Done*, delete another. Quit with a pending reminder, relaunch after it was due: it fires at startup.
 12. **Context menu.** Chat, Tell a joke, Fun fact, Pet, Do a trick ▸, Reminders…, Wander, Movement speed ▸, Sounds, Settings…, Hide, Quit all work.
